@@ -887,7 +887,7 @@ const SLOT_SPACING = SP * 1.1;
 const CART_WIDTH   = CART_SLOTS * SLOT_SPACING + 0.12;
 const CART_DEPTH   = SP * 1.3;
 const CART_HEIGHT  = SP * 1.5;
-const CART_COUNT   = 4;    // user wants 4 carts
+const CART_COUNT   = 3;    // user wants 3 carts
 
 // Belt oval geometry
 const BELT_R        = 0.55;                       // pulley radius (bigger = more gap between runs)
@@ -895,7 +895,7 @@ const BELT_GAP      = BELT_R * 2;                 // distance between upper and 
 const BELT_TOP_Y    = -2.8;                       // baked: +0.7 from dev panel
 const BELT_BOT_Y    = BELT_TOP_Y - BELT_GAP;      // lower surface world Y
 const BELT_CENTRE_Y = (BELT_TOP_Y + BELT_BOT_Y) / 2; // pulley centre Y
-const BELT_STR      = 6.0;                        // straight-segment length (and cart row width)
+const BELT_STR      = 4.5;                        // belt length (shrunk from 6.0 for 3 carts)
 const BELT_DEPTH    = CART_DEPTH + 0.25;          // Z-thickness
 let BELT_SPEED = 1.6;                             // world units per second along the loop
 
