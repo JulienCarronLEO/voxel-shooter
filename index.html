@@ -1,0 +1,4096 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Voxel Shooter 3D</title>
+<style>
+/* ── MATCH MECHANIC HIDDEN (temporarily while funnel/conveyor is developed) ── */
+#goal-ui, #goal-label, #goal-canvas, #goal-debug-label, #star-counter, #combo, #score, #core-msg, #charge-msg, #hint, #goal-celebration, #goal-celebration-star, #goal-celebration-text, #goal-celebration-sub, #fire-debug, #shooter-ui, #level-badge, #lives-ui { display: none !important; }
+
+* { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; -webkit-user-select: none; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000010; }
+canvas#threeCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: block; background: #000010; }
+#trajectoryCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+#score { display: none; position: fixed; top: 18px; left: 50%; transform: translateX(-50%); font-family: -apple-system, sans-serif; font-size: 26px; font-weight: 700; color: white; text-shadow: 0 2px 8px rgba(0,0,0,0.3); pointer-events: none; z-index: 10; }
+#combo { position: fixed; top: 158px; left: 50%; transform: translateX(-50%) scale(1); font-family: -apple-system, sans-serif; font-size: 22px; font-weight: 700; color: #ffe066; text-shadow: 0 2px 12px rgba(0,0,0,0.5); opacity: 0; pointer-events: none; z-index: 10; transition: opacity 0.2s, transform 0.15s; letter-spacing: 1px; }
+#charge-msg { display: none; position: fixed; top: 22%; left: 50%; transform: translateX(-50%) scale(0); font-family: -apple-system, sans-serif; font-size: 24px; font-weight: 700; color: #ff6600; text-shadow: 0 0 20px rgba(255,100,0,0.9), 0 2px 8px rgba(0,0,0,0.5); pointer-events: none; z-index: 20; letter-spacing: 2px; opacity: 0; transition: opacity 0.15s, transform 0.15s; }
+#debug-panel {
+  position: fixed; bottom: 160px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,20,0.92); border: 2px solid rgba(255,255,255,0.6);
+  border-radius: 12px; padding: 12px 16px; z-index: 9999;
+  font-family: -apple-system, sans-serif; color: white; font-size: 14px;
+  min-width: 200px; pointer-events: auto;
+}
+#debug-panel .dp-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0; }
+#debug-panel .dp-label { color: rgba(255,255,255,0.65); font-size: 11px; }
+#debug-panel .dp-val { font-weight: 700; font-size: 15px; min-width: 36px; text-align: center; }
+#debug-panel button { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
+  color: white; border-radius: 6px; width: 26px; height: 26px; font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; padding: 0; }
+#debug-panel button:active { background: rgba(255,255,255,0.35); }
+#hint { display: none; }
+#crosshair { position: fixed; width: 36px; height: 36px; pointer-events: none; z-index: 15; display: none; transform: translate(-50%,-50%); }
+#crosshair::before, #crosshair::after { content: ''; position: absolute; background: white; border-radius: 2px; }
+#crosshair::before { width: 2px; height: 100%; left: 50%; top: 0; transform: translateX(-50%); }
+#crosshair::after  { width: 100%; height: 2px; top: 50%; left: 0; transform: translateY(-50%); }
+#crosshair-ring { position: fixed; width: 36px; height: 36px; border: 2px solid white; border-radius: 50%; pointer-events: none; z-index: 15; display: none; transform: translate(-50%,-50%); opacity: 0.85; }
+#core-msg { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%) scale(0); font-family: -apple-system, sans-serif; font-size: 28px; font-weight: 700; color: #ffe066; text-shadow: 0 0 24px rgba(255,200,0,0.9); pointer-events: none; z-index: 20; transition: transform 0.2s, opacity 0.3s; opacity: 0; }
+#level-badge { position: fixed; top: 18px; right: 20px; font-family: -apple-system, sans-serif; font-size: 15px; font-weight: 700; color: rgba(255,255,255,0.9); text-shadow: 0 2px 6px rgba(0,0,0,0.3); pointer-events: none; z-index: 10; }
+#tokens { position: fixed; top: 42px; right: 20px; font-family: -apple-system, sans-serif; font-size: 13px; color: #ffe066; pointer-events: none; z-index: 10; }
+#shots-ui {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: -apple-system, sans-serif;
+  pointer-events: none;
+  z-index: 10;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+#shots-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.55);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+}
+#shots-count {
+  font-size: 36px;
+  font-weight: 700;
+  color: white;
+  text-shadow: 0 0 20px rgba(255,255,255,0.4), 0 2px 8px rgba(0,0,0,0.5);
+  line-height: 1;
+  transition: color 0.3s, text-shadow 0.3s;
+}
+#shots-count.warning {
+  color: #f39c12;
+  text-shadow: 0 0 20px rgba(243,156,18,0.7), 0 2px 8px rgba(0,0,0,0.5);
+}
+#shots-count.danger {
+  color: #e74c3c;
+  text-shadow: 0 0 24px rgba(231,76,60,0.9), 0 2px 8px rgba(0,0,0,0.5);
+}
+#lives-ui { position: fixed; top: 66px; left: 20px; font-family: -apple-system, sans-serif; font-size: 13px; color: rgba(255,255,255,0.8); pointer-events: none; z-index: 10; }
+#out-overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; pointer-events: none; z-index: 30; opacity: 0; transition: opacity 0.4s; background: rgba(0,0,20,0.7); backdrop-filter: blur(6px); }
+#out-overlay.show { opacity: 1; pointer-events: auto; }
+#out-overlay .out-title { font-family: -apple-system, sans-serif; font-size: 38px; font-weight: 700; color: #e74c3c; text-shadow: 0 0 30px rgba(231,76,60,0.8); transform: scale(0); transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1); }
+#out-overlay.show .out-title { transform: scale(1); }
+#out-overlay .out-sub { font-family: -apple-system, sans-serif; font-size: 17px; color: rgba(255,255,255,0.85); opacity: 0; transition: opacity 0.3s 0.25s; text-align: center; }
+#out-overlay.show .out-sub { opacity: 1; }
+#out-overlay .out-lives { font-size: 42px; transform: scale(0); transition: transform 0.4s 0.3s cubic-bezier(0.34,1.56,0.64,1); }
+#out-overlay.show .out-lives { transform: scale(1); }
+#out-overlay .out-btn { margin-top: 8px; padding: 14px 40px; background: rgba(255,255,255,0.12); border: 2px solid rgba(255,255,255,0.75); border-radius: 32px; font-family: -apple-system, sans-serif; font-size: 17px; font-weight: 700; color: white; cursor: pointer; opacity: 0; transition: opacity 0.3s 0.55s, background 0.2s; }
+#out-overlay.show .out-btn { opacity: 1; }
+#out-overlay .out-btn:active { background: rgba(255,255,255,0.28); }
+#level-overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; pointer-events: none; z-index: 30; opacity: 0; transition: opacity 0.5s; background: rgba(0,0,20,0.55); backdrop-filter: blur(4px); }
+#level-overlay.show { opacity: 1; pointer-events: auto; }
+#level-overlay .lv-title { font-family: -apple-system, sans-serif; font-size: 46px; font-weight: 700; color: #ffe066; text-shadow: 0 0 40px rgba(255,180,0,0.9), 0 4px 12px rgba(0,0,0,0.5); letter-spacing: 2px; transform: scale(0); transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1); }
+#level-overlay.show .lv-title { transform: scale(1); }
+#level-overlay .lv-sub { font-family: -apple-system, sans-serif; font-size: 19px; color: rgba(255,255,255,0.9); opacity: 0; transition: opacity 0.4s 0.35s; text-align: center; }
+#level-overlay.show .lv-sub { opacity: 1; }
+#level-overlay .lv-token { font-size: 54px; transform: scale(0) rotate(-20deg); transition: transform 0.5s 0.5s cubic-bezier(0.34,1.56,0.64,1); }
+#level-overlay.show .lv-token { transform: scale(1) rotate(0deg); }
+#level-overlay .lv-btn { margin-top: 10px; padding: 14px 44px; background: rgba(255,255,255,0.15); border: 2px solid rgba(255,255,255,0.8); border-radius: 32px; font-family: -apple-system, sans-serif; font-size: 18px; font-weight: 700; color: white; cursor: pointer; opacity: 0; transition: opacity 0.3s 0.85s, background 0.2s; }
+#level-overlay.show .lv-btn { opacity: 1; }
+#level-overlay .lv-btn:active { background: rgba(255,255,255,0.3); }
+#level-badge { position: fixed; top: 18px; right: 20px; font-family: -apple-system, sans-serif; font-size: 15px; font-weight: 700; color: rgba(255,255,255,0.9); text-shadow: 0 2px 6px rgba(0,0,0,0.3); pointer-events: none; z-index: 10; }
+#tokens { position: fixed; top: 48px; right: 20px; font-family: -apple-system, sans-serif; font-size: 13px; color: #ffe066; text-shadow: 0 1px 6px rgba(0,0,0,0.4); pointer-events: none; z-index: 10; letter-spacing: 0.5px; }
+#level-overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; pointer-events: none; z-index: 30; opacity: 0; transition: opacity 0.5s; }
+#level-overlay.show { opacity: 1; pointer-events: auto; }
+#level-overlay .lv-title { font-family: -apple-system, sans-serif; font-size: 48px; font-weight: 700; color: #ffe066; text-shadow: 0 0 40px rgba(255,180,0,0.9), 0 4px 12px rgba(0,0,0,0.5); letter-spacing: 2px; transform: scale(0); transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1); }
+#level-overlay.show .lv-title { transform: scale(1); }
+#level-overlay .lv-sub { font-family: -apple-system, sans-serif; font-size: 20px; color: white; text-shadow: 0 2px 8px rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.4s 0.3s; }
+#level-overlay.show .lv-sub { opacity: 1; }
+#level-overlay .lv-token { font-size: 52px; transform: scale(0) rotate(-20deg); transition: transform 0.5s 0.5s cubic-bezier(0.34,1.56,0.64,1); filter: drop-shadow(0 0 16px rgba(255,215,0,0.9)); }
+#level-overlay.show .lv-token { transform: scale(1) rotate(0deg); }
+#level-overlay .lv-btn { margin-top: 8px; padding: 14px 40px; background: rgba(255,255,255,0.15); border: 2px solid rgba(255,255,255,0.7); border-radius: 32px; font-family: -apple-system, sans-serif; font-size: 18px; font-weight: 700; color: white; cursor: pointer; backdrop-filter: blur(8px); opacity: 0; transition: opacity 0.3s 0.8s, background 0.2s; }
+#level-overlay.show .lv-btn { opacity: 1; }
+#level-overlay .lv-btn:hover { background: rgba(255,255,255,0.28); }
+#shooter-ui {
+  position: fixed;
+  top: 50px;  /* baked from dev panel (120 - 70) */
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  z-index: 10;
+  pointer-events: auto;
+}
+/* Scale down the action cubes a bit since they're competing for top-screen space */
+#shooter-ui .cube3d-wrap { transform: scale(0.7); transform-origin: center; }
+#shooter-ui .proj-slot span { font-size: 10px; }
+#swap-slot { transform: translateX(-16px); }
+#fire-slot { position: relative; }
+.proj-slot { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.proj-slot span { font-family: -apple-system, sans-serif; font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.8); letter-spacing: 0.5px; text-transform: uppercase; }
+#currentPreview { border-radius: 50%; border: 3px solid rgba(255,255,255,0.95); cursor: pointer; position: relative; }
+#nextPreview    { border-radius: 50%; border: 2px solid rgba(255,255,255,0.65); opacity: 0.88; cursor: pointer; }
+#lobPreview     { border-radius: 50%; border: 2px solid rgba(100,200,255,0.85); cursor: pointer; opacity: 0.88; }
+#lob-label      { color: rgba(100,200,255,0.9) !important; }
+#power-ring {
+  position: fixed;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  pointer-events: none;
+  z-index: 11;
+  display: none;
+  transition: border-color 0.1s;
+}
+#nextPreview    { border-radius: 50%; border: 2px solid rgba(255,255,255,0.65); opacity: 0.88; cursor: pointer; }
+#debug-panel {
+  position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.75); border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 8px; padding: 4px 10px; z-index: 100;
+  font-family: -apple-system, sans-serif; color: white; font-size: 11px;
+  pointer-events: auto; display: flex; gap: 8px; align-items: center;
+  white-space: nowrap;
+}
+#debug-panel .dp-label { color: rgba(255,255,255,0.6); font-size: 11px; margin-bottom: 2px; }
+#debug-panel .dp-val { font-weight: 700; font-size: 18px; text-align: center; }
+#debug-panel .dp-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+#debug-panel .dp-btns { display: flex; gap: 4px; }
+#debug-panel button {
+  background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4);
+  color: white; border-radius: 6px; width: 30px; height: 30px;
+  font-size: 18px; cursor: pointer; line-height: 1;
+}
+#fire-debug {
+  position: fixed; bottom: 28px; right: 16px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  z-index: 20; pointer-events: none;
+}
+#fire-debug-swatch {
+  width: 36px; height: 36px; border-radius: 6px;
+  border: 2px solid rgba(255,255,255,0.7);
+  background: #888;
+}
+#fire-debug-label {
+  font-family: -apple-system, sans-serif; font-size: 9px;
+  color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.5px;
+}
+
+#top-bar {
+  position: fixed; top: 12px; left: 0; right: 0;
+  display: flex; justify-content: center; align-items: flex-start;
+  gap: 24px; z-index: 10; pointer-events: none;
+}
+#shots-ui {
+  position: relative; top: auto; left: auto; transform: none;
+  text-align: center;
+}
+#goal-ui {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  pointer-events: none;
+}
+#goal-label {
+  font-family: -apple-system, sans-serif;
+  font-size: 11px; font-weight: 600; letter-spacing: 1px;
+  color: rgba(255,255,255,0.7); text-transform: uppercase;
+}
+#goal-canvas {
+  border: 1.5px solid rgba(255,255,255,0.4);
+  border-radius: 6px; background: rgba(0,0,0,0.3);
+  image-rendering: pixelated;
+}
+#goal-star {
+  font-size: 22px; opacity: 0;
+  transition: opacity 0.3s, transform 0.3s;
+  transform: scale(0.5);
+}
+#goal-star.earned {
+  opacity: 1; transform: scale(1.2);
+}
+
+/* ── Star counter ─────────────────────────────────────────────────────── */
+#star-counter {
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  font-family: -apple-system, sans-serif;
+  pointer-events: none;
+}
+#star-counter-icon { font-size: 20px; }
+#star-counter-val {
+  font-size: 22px; font-weight: 800; color: #ffdd00;
+  text-shadow: 0 0 8px rgba(255,200,0,0.8);
+}
+
+/* ── Goal celebration overlay ────────────────────────────────────────── */
+#goal-celebration {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  pointer-events: none; z-index: 50;
+  opacity: 0; transition: opacity 0.2s;
+}
+#goal-celebration.show { opacity: 1; }
+#goal-celebration-star {
+  font-size: 90px; line-height: 1;
+  animation: starPop 0.4s cubic-bezier(0.175,0.885,0.32,1.275) forwards;
+  filter: drop-shadow(0 0 20px rgba(255,220,0,1));
+}
+#goal-celebration-text {
+  font-family: -apple-system, sans-serif;
+  font-size: 32px; font-weight: 900; color: #ffdd00;
+  text-shadow: 0 0 20px rgba(255,180,0,0.9), 0 2px 4px rgba(0,0,0,0.8);
+  letter-spacing: 2px; margin-top: 8px;
+}
+#goal-celebration-sub {
+  font-family: -apple-system, sans-serif;
+  font-size: 16px; font-weight: 600; color: rgba(255,255,255,0.85);
+  margin-top: 6px; letter-spacing: 1px;
+}
+@keyframes starPop {
+  0%   { transform: scale(0) rotate(-30deg); }
+  60%  { transform: scale(1.3) rotate(10deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+#combo-debug {
+  position: fixed; bottom: 160px; right: 12px; z-index: 100;
+  background: rgba(0,0,0,0.75); border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 8px; padding: 6px 10px;
+  font-family: -apple-system, sans-serif; color: white; font-size: 11px;
+  pointer-events: auto; display: flex; align-items: center; gap: 6px;
+}
+/* ── 3D action bar cubes ───────────────────────────────────────────────── */
+.cube3d-wrap {
+  perspective: 200px;
+  display: flex; align-items: center; justify-content: center;
+}
+.cube3d {
+  position: relative;
+  transform-style: preserve-3d;
+  animation: cubeRotate 4s linear infinite;
+}
+#swapCube  { width: 36px; height: 36px; }
+#fireCube  { width: 52px; height: 52px; }
+@keyframes cubeRotate {
+  0%   { transform: rotateX(15deg) rotateY(0deg); }
+  100% { transform: rotateX(15deg) rotateY(360deg); }
+}
+.cube3d .face {
+  position: absolute;
+  border: 1.5px solid rgba(0,0,0,0.35);
+}
+/* Swap cube faces - 36px */
+#swapCube .face { width: 36px; height: 36px; }
+#swapCube .front  { transform: translateZ(18px); }
+#swapCube .back   { transform: translateZ(-18px) rotateY(180deg); }
+#swapCube .left   { transform: translateX(-18px) rotateY(-90deg); }
+#swapCube .right  { transform: translateX(18px) rotateY(90deg); }
+#swapCube .top    { transform: translateY(-18px) rotateX(90deg); }
+#swapCube .bottom { transform: translateY(18px) rotateX(-90deg); }
+/* Fire cube faces - 52px */
+#fireCube .face { width: 52px; height: 52px; }
+#fireCube .front  { transform: translateZ(26px); }
+#fireCube .back   { transform: translateZ(-26px) rotateY(180deg); }
+#fireCube .left   { transform: translateX(-26px) rotateY(-90deg); }
+#fireCube .right  { transform: translateX(26px) rotateY(90deg); }
+#fireCube .top    { transform: translateY(-26px) rotateX(90deg); }
+#fireCube .bottom { transform: translateY(26px) rotateX(-90deg); }
+
+/* Cart counter — replaces points/stars. Prominent, top-right. */
+#cart-counter {
+  position: fixed;
+  top: 14px;
+  right: 16px;
+  z-index: 20;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #fff;
+  text-align: center;
+  padding: 8px 14px;
+  background: rgba(30, 40, 60, 0.85);
+  border: 2px solid rgba(255, 220, 100, 0.5);
+  border-radius: 12px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+  min-width: 90px;
+  transition: transform 0.18s cubic-bezier(0.25, 1.6, 0.5, 1);
+}
+#cart-counter.pulse {
+  transform: scale(1.25);
+}
+#cart-counter-label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  font-weight: 600;
+  opacity: 0.7;
+  margin-bottom: 2px;
+}
+#cart-counter-val {
+  font-size: 38px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -1px;
+  text-shadow: 0 0 14px rgba(255, 220, 100, 0.7);
+}
+#cart-counter-icon {
+  font-size: 16px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+</style>
+</head>
+<body>
+<canvas id="threeCanvas"></canvas>
+<canvas id="trajectoryCanvas"></canvas>
+<div id="score">Score: 0</div>
+<div id="combo"></div>
+<div id="charge-msg"></div>
+<div id="core-msg">⭐ CORE EXPOSED!</div>
+<div id="hint">Tap a block to shoot · Tap next to swap</div>
+<div id="top-bar">
+  <div id="goal-ui">
+    <div id="goal-label">Match</div>
+    <div id="goal-debug-label" style="font-family:-apple-system,sans-serif;font-size:9px;color:rgba(255,255,100,0.8);text-align:center;max-width:80px;word-break:break-all;pointer-events:none;"></div>
+    <canvas id="goal-canvas" width="72" height="72"></canvas>
+    <div id="star-counter">
+      <span id="star-counter-icon">⭐</span>
+      <span id="star-counter-val">0</span>
+    </div>
+  </div>
+  <div id="shots-ui">
+    <div id="shots-label">Shots left</div>
+    <div id="shots-count">--</div>
+  </div>
+</div>
+<div id="lives-ui">❤️ ∞</div>
+<div id="out-overlay">
+  <div class="out-title">OUT OF SHOTS!</div>
+  <div class="out-sub" id="out-sub">Using a life to try again...</div>
+  <div class="out-lives">❤️</div>
+  <button class="out-btn" id="out-btn">Try Again</button>
+</div>
+<div id="crosshair"></div>
+<div id="crosshair-ring"></div>
+<!-- Cart counter — replaces points & stars -->
+<div id="cart-counter">
+  <div id="cart-counter-label">CARTS</div>
+  <div><span id="cart-counter-icon">🚃</span><span id="cart-counter-val">0</span></div>
+</div>
+<div id="level-badge">Level 1</div>
+<div id="tokens">🏅 ×0</div>
+<div id="level-overlay">
+  <div class="lv-title" id="lv-title">LEVEL COMPLETE!</div>
+  <div class="lv-sub" id="lv-sub">You cleared the core!</div>
+  <div class="lv-token">🏅</div>
+  <button class="lv-btn" id="lv-btn">Next Level →</button>
+</div>
+
+<div id="shooter-ui">
+  <div class="proj-slot" id="swap-slot">
+    <div class="cube3d-wrap" id="swapCubeWrap" style="width:60px;height:60px;">
+      <div class="cube3d" id="swapCube">
+        <div class="face front"></div><div class="face back"></div>
+        <div class="face left"></div><div class="face right"></div>
+        <div class="face top"></div><div class="face bottom"></div>
+      </div>
+    </div>
+    <canvas id="nextPreview" width="60" height="60" style="display:none;"></canvas>
+    <span>Swap</span>
+  </div>
+  <div class="proj-slot" id="fire-slot" style="position:relative;">
+    <div class="cube3d-wrap" id="fireCubeWrap" style="width:86px;height:86px;">
+      <div class="cube3d" id="fireCube">
+        <div class="face front"></div><div class="face back"></div>
+        <div class="face left"></div><div class="face right"></div>
+        <div class="face top"></div><div class="face bottom"></div>
+      </div>
+    </div>
+    <canvas id="currentPreview" width="86" height="86" style="display:none;"></canvas>
+    <span>Fire</span>
+  </div>
+  <div class="proj-slot" id="lob-slot" style="display:none;">
+    <canvas id="lobPreview" width="60" height="60"></canvas>
+    <span id="lob-label">Lob</span>
+  </div>
+  <canvas id="power-ring" width="100" height="100"></canvas>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+if(typeof THREE === 'undefined') {
+  // Fallback CDN
+  document.write('<script src="https://unpkg.com/three@0.128.0/build/three.min.js"><\/script>');
+}
+</script>
+<script>
+// Guard: if Three.js didn't load, show error
+if(typeof THREE === 'undefined') {
+  document.body.innerHTML = '<div style="color:white;font-family:sans-serif;padding:40px;text-align:center;background:#1a3a5c;height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column"><h2>Loading Error</h2><p style="margin-top:12px;opacity:0.7">Could not load 3D library.<br>Please open this file via a web server<br>or check your internet connection.</p></div>';
+  throw new Error('THREE not loaded');
+}
+
+// ── Audio ──────────────────────────────────────────────────────────────────
+let AC = null;
+function getAC() {
+  if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+  if (AC.state === 'suspended') AC.resume();
+  return AC;
+}
+
+// ── Charge sound — rising tone that grows with charge level ──────────────────
+let chargeOsc = null, chargeGain = null;
+
+function startChargeSound() {
+  try {
+    const ac = getAC();
+    chargeOsc  = ac.createOscillator();
+    chargeGain = ac.createGain();
+    chargeOsc.type = 'sine';
+    chargeOsc.frequency.setValueAtTime(180, ac.currentTime);
+    chargeGain.gain.setValueAtTime(0, ac.currentTime);
+    chargeGain.gain.linearRampToValueAtTime(0.0, ac.currentTime + 0.05);
+    chargeOsc.connect(chargeGain);
+    chargeGain.connect(ac.destination);
+    chargeOsc.start();
+  } catch(e){}
+}
+
+function updateChargeSound(charge) {
+  if(!chargeOsc || !chargeGain) return;
+  try {
+    const ac = getAC();
+    // Pitch rises from 180Hz to 880Hz as charge fills
+    const freq = 180 + charge * charge * 700;
+    chargeOsc.frequency.setValueAtTime(freq, ac.currentTime);
+    // Volume grows gently
+    chargeGain.gain.setValueAtTime(0.04 + charge * 0.1, ac.currentTime);
+  } catch(e){}
+}
+
+function stopChargeSound() {
+  if(!chargeOsc) return;
+  try {
+    const ac = getAC();
+    chargeGain.gain.setValueAtTime(chargeGain.gain.value, ac.currentTime);
+    chargeGain.gain.linearRampToValueAtTime(0, ac.currentTime + 0.08);
+    chargeOsc.stop(ac.currentTime + 0.09);
+  } catch(e){}
+  chargeOsc = null; chargeGain = null;
+}
+
+// ── Ambient space music ────────────────────────────────────────────────────────
+let musicStarted = false;
+let musicNodes = []; // keep refs to stop cleanly
+
+function startSpaceMusic() {
+  if(musicStarted) return;
+  musicStarted = true;
+  const ac = getAC();
+
+  // Master gain — very quiet
+  const master = ac.createGain();
+  master.gain.setValueAtTime(0, ac.currentTime);
+  master.gain.linearRampToValueAtTime(0.6, ac.currentTime + 4); // fade in over 4s
+  master.connect(ac.destination);
+
+  // ── Layer 1: Deep sub-bass drone ──────────────────────────────────────────
+  // Two detuned oscillators for a slow beating effect
+  function makeDrone(freq, detune, gainAmt) {
+    const osc = ac.createOscillator();
+    const g   = ac.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    osc.detune.value    = detune;
+    g.gain.value        = gainAmt;
+    osc.connect(g); g.connect(master);
+    osc.start();
+    musicNodes.push(osc);
+  }
+  makeDrone(55,   0,  0.5);  // A1 fundamental
+  makeDrone(55,   4,  0.4);  // A1 slightly detuned — slow beating
+  makeDrone(82.5, 0,  0.3);  // E2 fifth
+  makeDrone(110,  0,  0.2);  // A2 octave
+  makeDrone(27.5, 0,  0.35); // A0 sub bass
+
+  // Layer 2 removed — no noise/wind
+
+  // ── Layer 3: Sparse bell-like tones — single clear notes, not wind-like ──
+  const bellFreqs = [220, 277, 330, 440, 554, 659];
+  function scheduleShimmer() {
+    const delay = 4 + Math.random() * 10;
+    const freq  = bellFreqs[Math.floor(Math.random()*bellFreqs.length)];
+    const dur   = 0.8 + Math.random() * 1.2;
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine'; o.frequency.value = freq;
+    const t = ac.currentTime + delay;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.09, t + 0.04); // sharp attack — bell-like
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t + dur + 0.05);
+    musicNodes.push(o);
+    setTimeout(scheduleShimmer, (delay + dur) * 1000);
+  }
+  scheduleShimmer();
+
+  // ── Layer 4: Aura pulse — slow breathing amplitude envelope ──────────────
+  // Two detuned mid oscillators whose volume pulses gently in and out
+  [[220, 0, 0.12], [220, 6, 0.10], [330, 2, 0.07]].forEach(([f, det, vol]) => {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine'; o.frequency.value = f; o.detune.value = det;
+    g.gain.value = 0;
+    o.connect(g); g.connect(master); o.start();
+    musicNodes.push(o, g);
+
+    // Slow breathing pulse — in over 4s, out over 4s, offset per voice
+    const offset = Math.random() * 8;
+    function pulse() {
+      const t = ac.currentTime;
+      const period = 7 + Math.random() * 5;
+      g.gain.cancelScheduledValues(t);
+      g.gain.setValueAtTime(g.gain.value, t);
+      g.gain.linearRampToValueAtTime(vol, t + period * 0.5);
+      g.gain.linearRampToValueAtTime(0.005, t + period);
+      setTimeout(pulse, period * 1000);
+    }
+    setTimeout(pulse, offset * 1000);
+  });
+}
+function showChargeMsg(text, color) {
+  const el = document.getElementById('charge-msg');
+  el.textContent = text;
+  el.style.color = color || '#ff6600';
+  el.style.textShadow = `0 0 20px ${color||'#ff6600'}, 0 2px 8px rgba(0,0,0,0.5)`;
+  el.style.opacity = '1';
+  el.style.transform = 'translateX(-50%) scale(1)';
+  clearTimeout(el._timer);
+  el._timer = setTimeout(()=>{
+    el.style.opacity = '0';
+    el.style.transform = 'translateX(-50%) scale(0.8)';
+  }, 1200);
+}
+
+function adjustElevation(delta) {
+  camElevation = Math.round((camElevation + delta) * 10) / 10;
+  camElevation = Math.max(5, Math.min(85, camElevation));
+  updateCamera();
+  const el = document.getElementById('dp-elev'); if(el) el.textContent = camElevation.toFixed(0) + '°';
+}
+function adjustOriginY(delta) {
+  originYOffset = Math.round((originYOffset + delta) * 10) / 10;
+  document.getElementById('dp-originy').textContent = originYOffset.toFixed(1);
+}
+
+function playShoot() {
+  try {
+    const ac=getAC(), t=ac.currentTime;
+    // Layer 1: swoosh noise burst (filtered white noise)
+    const bufSize=ac.sampleRate*0.18;
+    const buf=ac.createBuffer(1,bufSize,ac.sampleRate);
+    const data=buf.getChannelData(0);
+    for(let i=0;i<bufSize;i++) data[i]=(Math.random()*2-1);
+    const noise=ac.createBufferSource(); noise.buffer=buf;
+    const noiseFilter=ac.createBiquadFilter();
+    noiseFilter.type='bandpass'; noiseFilter.frequency.setValueAtTime(1800,t);
+    noiseFilter.frequency.exponentialRampToValueAtTime(400,t+0.18);
+    noiseFilter.Q.value=1.2;
+    const noiseGain=ac.createGain();
+    noiseGain.gain.setValueAtTime(0.12,t); noiseGain.gain.exponentialRampToValueAtTime(0.001,t+0.18);
+    noise.connect(noiseFilter); noiseFilter.connect(noiseGain); noiseGain.connect(ac.destination);
+    noise.start(t); noise.stop(t+0.2);
+
+    // Layer 2: tonal pitch-drop (the "pew")
+    const o=ac.createOscillator(), g=ac.createGain();
+    o.connect(g); g.connect(ac.destination); o.type='sine';
+    o.frequency.setValueAtTime(900,t);
+    o.frequency.exponentialRampToValueAtTime(180,t+0.22);
+    g.gain.setValueAtTime(0.13,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.22);
+    o.start(t); o.stop(t+0.24);
+
+    // Layer 3: sub thud
+    const o2=ac.createOscillator(), g2=ac.createGain();
+    o2.connect(g2); g2.connect(ac.destination); o2.type='sine';
+    o2.frequency.setValueAtTime(120,t); o2.frequency.exponentialRampToValueAtTime(40,t+0.12);
+    g2.gain.setValueAtTime(0.18,t); g2.gain.exponentialRampToValueAtTime(0.001,t+0.14);
+    o2.start(t); o2.stop(t+0.16);
+  } catch(e){}
+}
+function playPop(i) {
+  try {
+    const ac=getAC(), t=ac.currentTime+i*0.055;
+
+    // Impact thud — low punch
+    const o1=ac.createOscillator(), g1=ac.createGain();
+    o1.connect(g1); g1.connect(ac.destination); o1.type='sine';
+    o1.frequency.setValueAtTime(160+Math.random()*60,t);
+    o1.frequency.exponentialRampToValueAtTime(40,t+0.12);
+    g1.gain.setValueAtTime(0.28,t); g1.gain.exponentialRampToValueAtTime(0.001,t+0.14);
+    o1.start(t); o1.stop(t+0.16);
+
+    // Crack transient — short noise burst
+    const bufSize=Math.floor(ac.sampleRate*0.06);
+    const buf=ac.createBuffer(1,bufSize,ac.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let j=0;j<bufSize;j++) d[j]=(Math.random()*2-1)*Math.pow(1-j/bufSize,2);
+    const ns=ac.createBufferSource(); ns.buffer=buf;
+    const nf=ac.createBiquadFilter(); nf.type='highpass'; nf.frequency.value=800;
+    const ng=ac.createGain(); ng.gain.setValueAtTime(0.22,t); ng.gain.exponentialRampToValueAtTime(0.001,t+0.06);
+    ns.connect(nf); nf.connect(ng); ng.connect(ac.destination);
+    ns.start(t); ns.stop(t+0.07);
+
+    // Tonal shimmer — rising sparkle
+    const o2=ac.createOscillator(), g2=ac.createGain();
+    o2.connect(g2); g2.connect(ac.destination); o2.type='triangle';
+    const baseFreq=400+i*35+Math.random()*100;
+    o2.frequency.setValueAtTime(baseFreq,t); o2.frequency.exponentialRampToValueAtTime(baseFreq*2.2,t+0.18);
+    g2.gain.setValueAtTime(0.10,t+0.01); g2.gain.exponentialRampToValueAtTime(0.001,t+0.22);
+    o2.start(t+0.01); o2.stop(t+0.24);
+  } catch(e){}
+}
+function playCombo(count) {
+  try {
+    const ac=getAC(), freqs=[523,659,784,1047,1319];
+    for(let i=0;i<Math.min(count,freqs.length);i++) {
+      const delay=i*0.07, o=ac.createOscillator(), g=ac.createGain();
+      o.connect(g); g.connect(ac.destination); o.type='sine';
+      o.frequency.setValueAtTime(freqs[i],ac.currentTime+delay);
+      g.gain.setValueAtTime(0.14,ac.currentTime+delay); g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+delay+0.28);
+      o.start(ac.currentTime+delay); o.stop(ac.currentTime+delay+0.3);
+    }
+  } catch(e){}
+}
+function playMiss() {
+  try {
+    const ac=getAC(), o=ac.createOscillator(), g=ac.createGain();
+    o.connect(g); g.connect(ac.destination); o.type='sine';
+    o.frequency.setValueAtTime(220,ac.currentTime); o.frequency.exponentialRampToValueAtTime(110,ac.currentTime+0.14);
+    g.gain.setValueAtTime(0.1,ac.currentTime); g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.15);
+    o.start(); o.stop(ac.currentTime+0.16);
+  } catch(e){}
+}
+function playCoreReveal() {
+  try {
+    const ac=getAC();
+    [523,659,784,1047].forEach((f,i)=>{
+      const delay=i*0.09, o=ac.createOscillator(), g=ac.createGain();
+      o.connect(g); g.connect(ac.destination); o.type='triangle';
+      o.frequency.setValueAtTime(f,ac.currentTime+delay);
+      g.gain.setValueAtTime(0.2,ac.currentTime+delay); g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+delay+0.4);
+      o.start(ac.currentTime+delay); o.stop(ac.currentTime+delay+0.42);
+    });
+  } catch(e){}
+}
+
+// ── Single WebGL renderer (iOS safe) ──────────────────────────────────────
+const threeCanvas = document.getElementById('threeCanvas');
+const renderer = new THREE.WebGLRenderer({
+  canvas: threeCanvas, antialias: false, powerPreference: 'default', alpha: false
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = false;
+// shadows disabled for performance
+renderer.toneMapping = THREE.NoToneMapping;
+
+const scene = new THREE.Scene();
+// Gradient sky via a large sphere
+// ── Space background — Points-based star field ───────────────────────────────
+// Deep space background color
+scene.background = new THREE.Color(0x000008);
+
+// ── Star field using THREE.Points ────────────────────────────────────────────
+function makeStarField(count, radius, minSize, maxSize, minBright, maxBright) {
+  const positions = new Float32Array(count * 3);
+  const colors    = new Float32Array(count * 3);
+  const sizes     = new Float32Array(count);
+
+  for(let i = 0; i < count; i++) {
+    // Uniform distribution on sphere surface
+    const theta = Math.random() * Math.PI * 2;
+    const phi   = Math.acos(2 * Math.random() - 1);
+    const r     = radius;
+    positions[i*3]   = r * Math.sin(phi) * Math.cos(theta);
+    positions[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[i*3+2] = r * Math.cos(phi);
+
+    // Brightness variation
+    const b = minBright + Math.random() * (maxBright - minBright);
+    // Slight colour temperature variation: cool blue-white to warm white
+    const temp = Math.random();
+    colors[i*3]   = b * (0.85 + temp * 0.15);   // R
+    colors[i*3+1] = b * (0.88 + temp * 0.08);   // G
+    colors[i*3+2] = b * (0.95 + (1-temp)*0.05); // B
+
+    sizes[i] = minSize + Math.random() * (maxSize - minSize);
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color',    new THREE.BufferAttribute(colors, 3));
+  geo.setAttribute('size',     new THREE.BufferAttribute(sizes, 1));
+
+  const mat = new THREE.PointsMaterial({
+    size: 1.2,
+    vertexColors: true,
+    sizeAttenuation: false, // screen-space size — always same pixel size
+    transparent: true,
+    opacity: 1.0,
+    depthWrite: false,
+  });
+
+  return new THREE.Points(geo, mat);
+}
+
+// Three layers: many tiny, fewer medium, rare bright
+const starField1 = makeStarField(2500, 85, 0.8, 1.2, 0.5, 1.0);  // tiny dense (70%)
+const starField2 = makeStarField(630, 85, 1.5, 2.0, 0.7, 1.0);  // medium (70%)
+const starField3 = makeStarField(126,  85, 2.5, 3.5, 0.9, 1.0);  // bright rare (70%)
+// 30% of each layer — 3x bigger (closer feel)
+const starField1b = makeStarField(1080, 85, 2.4, 3.6, 0.5, 1.0);  // tiny → large
+const starField2b = makeStarField(270,  85, 4.5, 6.0, 0.7, 1.0);  // medium → large
+const starField3b = makeStarField(54,   85, 7.5,10.5, 0.9, 1.0);  // bright → very bright
+scene.add(starField1);
+scene.add(starField2);
+scene.add(starField3);
+scene.add(starField1b);
+scene.add(starField2b);
+scene.add(starField3b);
+
+// ── Milky Way band — extra density along a diagonal ───────────────────────────
+(function() {
+  const count = 1800;
+  const positions = new Float32Array(count * 3);
+  const colors    = new Float32Array(count * 3);
+  const mwAxis    = new THREE.Vector3(0.35, 0.12, 0.93).normalize();
+  const perp1     = new THREE.Vector3(1,0,0).cross(mwAxis).normalize();
+  const perp2     = new THREE.Vector3().crossVectors(mwAxis, perp1).normalize();
+  let added = 0;
+  let attempts = 0;
+  while(added < count && attempts < count * 20) {
+    attempts++;
+    // Random point on sphere
+    const theta = Math.random() * Math.PI * 2;
+    const phi   = Math.acos(2 * Math.random() - 1);
+    const x = Math.sin(phi)*Math.cos(theta);
+    const y = Math.sin(phi)*Math.sin(theta);
+    const z = Math.cos(phi);
+    const d = new THREE.Vector3(x,y,z);
+    // Accept if close to the milky way plane
+    const dot = Math.abs(d.dot(mwAxis));
+    const bandwidth = 0.28 + 0.08*Math.sin(theta*3.0); // wavy band
+    if(dot > bandwidth) continue;
+    // Weight toward centre of band
+    const prob = 1.0 - dot/bandwidth;
+    if(Math.random() > prob * 0.9) continue;
+    positions[added*3]   = x * 85;
+    positions[added*3+1] = y * 85;
+    positions[added*3+2] = z * 85;
+    const b = 0.35 + Math.random()*0.5;
+    colors[added*3]   = b * 0.85;
+    colors[added*3+1] = b * 0.88;
+    colors[added*3+2] = b * 1.0;
+    added++;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions.slice(0,added*3), 3));
+  geo.setAttribute('color',    new THREE.BufferAttribute(colors.slice(0,added*3), 3));
+  const mat = new THREE.PointsMaterial({
+    size: 0.9, vertexColors: true, sizeAttenuation: false,
+    transparent: true, opacity: 0.85, depthWrite: false,
+  });
+  scene.add(new THREE.Points(geo, mat));
+})();
+
+// skyMat still referenced for time uniform update — create a dummy
+const skyMat = { uniforms: { time: { value: 0 } } };
+scene.fog = null;
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 100);
+let originYOffset = -5;
+const camElevation = 25;
+const CAM_RADIUS = 10;
+function updateCamera() {
+  const elRad = camElevation * Math.PI / 180;
+  camera.position.set(0, Math.sin(elRad) * CAM_RADIUS, Math.cos(elRad) * CAM_RADIUS);
+  camera.lookAt(0, 0, 0);
+}
+updateCamera();
+
+window.addEventListener('resize', ()=>{
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  drawPreview2D(document.getElementById('currentPreview'), currentBlock, 86);
+  drawPreview2D(document.getElementById('nextPreview'), nextBlock, 60);
+});
+
+// Lights
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+sun.position.set(10,18,10); 
+ sun.shadow.camera.near=1; sun.shadow.camera.far=60;
+sun.shadow.camera.left=-12; sun.shadow.camera.right=12;
+sun.shadow.camera.top=12; sun.shadow.camera.bottom=-12;
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0x4488ff, 0.5);
+fill.position.set(-8,-6,-8); scene.add(fill);
+const rim = new THREE.DirectionalLight(0xff8844, 0.3);
+rim.position.set(0,-10,0); scene.add(rim);
+const coreLight = new THREE.PointLight(0xffd700, 0, 12);
+scene.add(coreLight);
+// Ambient particle light for bloom feel
+const ambientGlow = new THREE.PointLight(0x224488, 0.6, 30);
+ambientGlow.position.set(0,0,0); scene.add(ambientGlow);
+
+// ── Early hoisted constants (needed by funnel + belt setup below) ─────────
+const SP        = 0.40;
+const COLORS    = [0xe74c3c, 0x2980ff, 0x27ae60, 0xf39c12, 0x9b59b6, 0xeeeeee];
+const COLOR_HEX = ['#e74c3c','#2980ff','#27ae60','#f39c12','#9b59b6','#eeeeee'];
+
+const pivot = new THREE.Group();
+pivot.position.y = 0.5; // baked offset from dev panel
+scene.add(pivot);
+
+// ── Funnel below the cluster (world space, does not rotate) ───────────────
+const FUNNEL_TOP_Y    = -0.2;   // baked: +1.2 from dev panel
+const FUNNEL_BOTTOM_Y = -1.7;   // baked: +1.2 from dev panel
+const FUNNEL_TOP_R    = 2.6;    // wide mouth radius (covers full cluster footprint)
+const FUNNEL_BOTTOM_R = 0.45;   // narrow end radius
+const funnelGroup = new THREE.Group();
+{
+  const funnelGeo = new THREE.CylinderGeometry(
+    FUNNEL_TOP_R, FUNNEL_BOTTOM_R,
+    FUNNEL_TOP_Y - FUNNEL_BOTTOM_Y, 32, 1, true);
+  const funnelMat = new THREE.MeshBasicMaterial({
+    color: 0xaaccff, transparent:true, opacity:0.18, side:THREE.DoubleSide,
+    depthWrite:false
+  });
+  const funnelMesh = new THREE.Mesh(funnelGeo, funnelMat);
+  funnelMesh.position.y = (FUNNEL_TOP_Y + FUNNEL_BOTTOM_Y) / 2;
+  funnelGroup.add(funnelMesh);
+  // Wireframe rim so the funnel's edges are visible
+  const rimGeo = new THREE.EdgesGeometry(funnelGeo);
+  const rimMat = new THREE.LineBasicMaterial({ color:0xffffff, transparent:true, opacity:0.45 });
+  const rim = new THREE.LineSegments(rimGeo, rimMat);
+  rim.position.y = funnelMesh.position.y;
+  funnelGroup.add(rim);
+}
+scene.add(funnelGroup);
+
+// ── Conveyor oval loop ─────────────────────────────────────────────────────
+// Layout in world coordinates:
+//   - Upper run sits at y = BELT_TOP_Y (blocks land here from the funnel)
+//   - Lower run sits at y = BELT_BOTTOM_Y (blocks drop from here into carts below)
+//   - Pulleys: two half-circles at x = -BELT_STR/2 and +BELT_STR/2, radius BELT_R
+//   - Blocks travel clockwise when viewed from the front: upper run L→R,
+//     right pulley down, lower run R→L, left pulley up.
+// Carts sit BELOW the lower run and do not move.
+
+const CART_SLOTS   = 3;
+const SLOT_SPACING = SP * 1.1;
+const CART_WIDTH   = CART_SLOTS * SLOT_SPACING + 0.12;
+const CART_DEPTH   = SP * 1.3;
+const CART_HEIGHT  = SP * 1.5;
+const CART_COUNT   = 4;    // user wants 4 carts
+
+// Belt oval geometry
+const BELT_R        = 0.55;                       // pulley radius (bigger = more gap between runs)
+const BELT_GAP      = BELT_R * 2;                 // distance between upper and lower runs = 2*R
+const BELT_TOP_Y    = -2.8;                       // baked: +0.7 from dev panel
+const BELT_BOT_Y    = BELT_TOP_Y - BELT_GAP;      // lower surface world Y
+const BELT_CENTRE_Y = (BELT_TOP_Y + BELT_BOT_Y) / 2; // pulley centre Y
+const BELT_STR      = 6.0;                        // straight-segment length (and cart row width)
+const BELT_DEPTH    = CART_DEPTH + 0.25;          // Z-thickness
+let BELT_SPEED = 1.6;                             // world units per second along the loop
+
+// Loop parameterisation: s goes from 0 to LOOP_LEN and wraps.
+// s=0 is the upper-left (just after the left pulley top). Going clockwise:
+//   s ∈ [0, BELT_STR)                       upper run, x = -BELT_STR/2 + s
+//   s ∈ [BELT_STR, BELT_STR + π*BELT_R)     right pulley (half-turn clockwise, top → bottom)
+//   s ∈ [BELT_STR + π*R, 2*BELT_STR + π*R)  lower run, x = +BELT_STR/2 - (s - BELT_STR - π*R)
+//   s ∈ [last segment, LOOP_LEN)            left pulley (bottom → top)
+const LOOP_STRAIGHT = BELT_STR;
+const LOOP_ARC      = Math.PI * BELT_R;
+const LOOP_LEN      = 2 * LOOP_STRAIGHT + 2 * LOOP_ARC;
+
+// Convert loop parameter s → world {x, y, onLower: bool}
+function beltPosFromS(s) {
+  s = ((s % LOOP_LEN) + LOOP_LEN) % LOOP_LEN;
+  const centreR_x = BELT_STR / 2;
+  const centreL_x = -BELT_STR / 2;
+  // Upper run
+  if(s < LOOP_STRAIGHT) {
+    return { x: centreL_x + s, y: BELT_TOP_Y, onLower: false };
+  }
+  s -= LOOP_STRAIGHT;
+  // Right pulley: angle from 0 (top) to π (bottom), going clockwise (front view)
+  if(s < LOOP_ARC) {
+    const theta = (s / BELT_R); // 0..π
+    // At theta=0 we're at the top of the pulley (same as end of upper run)
+    // At theta=π we're at the bottom (start of lower run)
+    // Using standard Cartesian: upper point at (centreR_x, BELT_CENTRE_Y+R), moving clockwise
+    return {
+      x: centreR_x + BELT_R * Math.sin(theta),
+      y: BELT_CENTRE_Y + BELT_R * Math.cos(theta),
+      onLower: false
+    };
+  }
+  s -= LOOP_ARC;
+  // Lower run, moving right→left
+  if(s < LOOP_STRAIGHT) {
+    return { x: centreR_x - s, y: BELT_BOT_Y, onLower: true };
+  }
+  s -= LOOP_STRAIGHT;
+  // Left pulley: from bottom (theta=0) clockwise back to top (theta=π)
+  const theta = (s / BELT_R);
+  return {
+    x: centreL_x - BELT_R * Math.sin(theta),
+    y: BELT_CENTRE_Y - BELT_R * Math.cos(theta),
+    onLower: false
+  };
+}
+
+// ── Visual belt mesh (oval frame) ──────────────────────────────────────────
+const beltGroup = new THREE.Group();
+{
+  // Two horizontal strips for the upper and lower runs
+  const stripGeo = new THREE.BoxGeometry(BELT_STR, 0.08, BELT_DEPTH);
+  const stripMat = new THREE.MeshPhongMaterial({ color: 0x444455, shininess: 30 });
+  const upper = new THREE.Mesh(stripGeo, stripMat);
+  upper.position.set(0, BELT_TOP_Y - 0.04, 0);
+  const lower = new THREE.Mesh(stripGeo, stripMat);
+  lower.position.set(0, BELT_BOT_Y + 0.04, 0);
+  beltGroup.add(upper); beltGroup.add(lower);
+  // Pulley end caps (cylinders with axis along Z)
+  const pGeo = new THREE.CylinderGeometry(BELT_R, BELT_R, BELT_DEPTH, 24);
+  pGeo.rotateX(Math.PI/2);
+  const pMat = new THREE.MeshPhongMaterial({ color: 0x333344, shininess: 60 });
+  const pL = new THREE.Mesh(pGeo, pMat);
+  pL.position.set(-BELT_STR/2, BELT_CENTRE_Y, 0);
+  const pR = new THREE.Mesh(pGeo, pMat);
+  pR.position.set(+BELT_STR/2, BELT_CENTRE_Y, 0);
+  beltGroup.add(pL); beltGroup.add(pR);
+  // Subtle surface stripes on the upper run so movement is readable
+  for(let i = 0; i < 12; i++) {
+    const stripe = new THREE.Mesh(
+      new THREE.BoxGeometry(0.10, 0.09, BELT_DEPTH * 0.9),
+      new THREE.MeshBasicMaterial({ color: 0x2a2a35 })
+    );
+    stripe.position.set(-BELT_STR/2 + i * (BELT_STR/12) + 0.3, BELT_TOP_Y + 0.01, 0);
+    stripe.userData = { stripe:true, stripeS: i * (BELT_STR/12) };
+    beltGroup.add(stripe);
+  }
+}
+scene.add(beltGroup);
+
+// ── Carts: stationary row below the lower run ──────────────────────────────
+const CART_ROW_Y   = BELT_BOT_Y - CART_HEIGHT/2 - 0.35; // centre Y of each cart
+const CART_SPACING = BELT_STR / CART_COUNT;
+let carts = [];  // [{group, colorIdx, colorHex, x (centre X, fixed), slots[], landedCount, completing}]
+
+function makeCart(colorIdx) {
+  const colorHex = COLORS[colorIdx];
+  const g = new THREE.Group();
+  const wallMat  = new THREE.MeshPhongMaterial({ color: colorHex, transparent:true, opacity:0.55, shininess:30 });
+  const frameMat = new THREE.MeshPhongMaterial({ color: colorHex, shininess:50 });
+  // Base
+  const base = new THREE.Mesh(new THREE.BoxGeometry(CART_WIDTH, 0.1, CART_DEPTH), frameMat);
+  base.position.y = -CART_HEIGHT/2 + 0.05;
+  g.add(base);
+  // Walls
+  const wT = 0.06;
+  const wH = CART_HEIGHT - 0.1;
+  const w1 = new THREE.Mesh(new THREE.BoxGeometry(wT, wH, CART_DEPTH), wallMat);
+  w1.position.set(-CART_WIDTH/2 + wT/2, 0, 0); g.add(w1);
+  const w2 = new THREE.Mesh(new THREE.BoxGeometry(wT, wH, CART_DEPTH), wallMat);
+  w2.position.set( CART_WIDTH/2 - wT/2, 0, 0); g.add(w2);
+  const w3 = new THREE.Mesh(new THREE.BoxGeometry(CART_WIDTH, wH, wT), wallMat);
+  w3.position.set(0, 0, -CART_DEPTH/2 + wT/2); g.add(w3);
+  const w4 = new THREE.Mesh(new THREE.BoxGeometry(CART_WIDTH, wH, wT), wallMat);
+  w4.position.set(0, 0,  CART_DEPTH/2 - wT/2); g.add(w4);
+  // Corner pillars
+  const pGeo = new THREE.BoxGeometry(0.06, CART_HEIGHT, 0.06);
+  [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sz]) => {
+    const p = new THREE.Mesh(pGeo, frameMat);
+    p.position.set(sx*CART_WIDTH/2, 0, sz*CART_DEPTH/2);
+    g.add(p);
+  });
+  scene.add(g);
+  return {
+    group: g,
+    colorIdx: colorIdx,
+    colorHex: colorHex,
+    x: 0,
+    slots: [null, null, null],
+    landedCount: 0,
+    completing: false
+  };
+}
+
+function pickFreshColor(excludeCarts) {
+  // Pick a colour that isn't already on the belt line-up, preferring alive cluster colours
+  const used = new Set(excludeCarts.map(c => c.colorIdx));
+  const aliveColours = new Set();
+  blocks.forEach(b => { if(b.alive) aliveColours.add(b.colorIdx); });
+  const all = aliveColours.size > 0 ? Array.from(aliveColours) : [0,1,2,3,4,5];
+  const avail = all.filter(ci => !used.has(ci));
+  const pool = avail.length > 0 ? avail : all;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function positionCart(cart, slotIndex) {
+  // Evenly space slots across the belt's length
+  cart.x = -BELT_STR/2 + CART_SPACING * (slotIndex + 0.5);
+  cart.group.position.set(cart.x, CART_ROW_Y - 0.7, 0); // baked: -0.7 Y offset (was +0.3 then -1.0)
+}
+
+function spawnInitialCarts() {
+  for(let i = 0; i < CART_COUNT; i++) {
+    const ci = pickFreshColor(carts);
+    const cart = makeCart(ci);
+    positionCart(cart, i);
+    carts.push(cart);
+  }
+}
+
+function replaceCart(cart, slotIndex) {
+  // Cart slot slotIndex was just emptied (cart was filled, celebrated, and is gone).
+  // Spawn a fresh cart in the same slot.
+  scene.remove(cart.group);
+  const others = carts.filter(c => c !== cart);
+  const newCi = pickFreshColor(others);
+  const fresh = makeCart(newCi);
+  cart.group       = fresh.group;
+  cart.colorIdx    = fresh.colorIdx;
+  cart.colorHex    = fresh.colorHex;
+  cart.slots       = [null, null, null];
+  cart.landedCount = 0;
+  cart.completing  = false;
+  positionCart(cart, slotIndex);
+}
+
+// ── Blocks on the belt ─────────────────────────────────────────────────────
+// Each: { mesh, colorIdx, colorHex, s (loop parameter) }
+let beltBlocks = [];
+
+function putBlockOnBelt(mesh, colorIdx, colorHex, startS = 0.2) {
+  // Hand the mesh over from whatever parent it had to the scene, starting at position s.
+  if(mesh.parent) mesh.parent.remove(mesh);
+  scene.add(mesh);
+  mesh.rotation.set(0, 0, 0);
+  const p = beltPosFromS(startS);
+  mesh.position.set(p.x, p.y + SP*0.5, 0);
+  beltBlocks.push({ mesh, colorIdx, colorHex, s: startS });
+}
+
+// Per-frame: advance each block along the loop; if on lower run AND passing over
+// a matching cart, detach it and drop it into that cart.
+const DROP_X_TOLERANCE = CART_WIDTH * 0.35; // how close to cart centre counts as "above"
+function updateBeltBlocks(dt) {
+  const ds = BELT_SPEED * dt;
+  for(let i = beltBlocks.length - 1; i >= 0; i--) {
+    const bb = beltBlocks[i];
+    bb.s = (bb.s + ds) % LOOP_LEN;
+    const p = beltPosFromS(bb.s);
+    // Block sits "on" the belt: offset it perpendicular to the belt surface.
+    // For upper run: half a block above. Lower run: half a block below.
+    // For pulley sections: radially outward from the pulley centre.
+    let offsetX = 0, offsetY = 0;
+    if(p.onLower) {
+      offsetY = -SP * 0.5;
+    } else {
+      // upper run and pulley arcs — approximate as outward from belt centre
+      offsetY = (p.y >= BELT_CENTRE_Y) ? SP * 0.5 : -SP * 0.5;
+      // On pulley arcs, compute a proper radial offset
+      if(p.y !== BELT_TOP_Y && p.y !== BELT_BOT_Y) {
+        // Determine which pulley
+        const centreX = (p.x > 0) ? BELT_STR/2 : -BELT_STR/2;
+        const rx = p.x - centreX, ry = p.y - BELT_CENTRE_Y;
+        const rlen = Math.hypot(rx, ry) || 1;
+        offsetX = (rx / rlen) * SP * 0.5;
+        offsetY = (ry / rlen) * SP * 0.5;
+        // overwrite p.x adjustment: mesh sits at pulley-edge + half-block outward
+        bb.mesh.position.set(p.x + offsetX, p.y + offsetY, 0);
+        continue;
+      }
+    }
+    bb.mesh.position.set(p.x + offsetX, p.y + offsetY, 0);
+
+    // Drop check: only on lower run
+    if(p.onLower) {
+      // Find a cart whose centre X is within tolerance AND matching colour AND has empty slot
+      for(const cart of carts) {
+        if(cart.completing) continue;
+        if(cart.colorIdx !== bb.colorIdx) continue;
+        if(cart.slots.indexOf(null) === -1) continue;
+        if(Math.abs(p.x - cart.x) > DROP_X_TOLERANCE) continue;
+        // Drop! Remove from belt, add to falling-into-cart list
+        beltBlocks.splice(i, 1);
+        dropIntoCart(bb.mesh, cart);
+        break;
+      }
+    }
+  }
+  // Scroll the stripes on the upper belt for motion feel
+  beltGroup.children.forEach(ch => {
+    if(ch.userData && ch.userData.stripe !== undefined) {
+      ch.userData.stripeS = (ch.userData.stripeS + BELT_SPEED * dt) % BELT_STR;
+      ch.position.x = -BELT_STR/2 + ch.userData.stripeS;
+    }
+  });
+}
+
+// Short drop animation from lower-belt Y to cart interior Y, homing to first empty slot
+let _cartDropping = []; // [{mesh, cart, slotIdx, vx, vy}]
+
+function dropIntoCart(mesh, cart) {
+  const slotIdx = cart.slots.indexOf(null);
+  if(slotIdx === -1) return; // shouldn't happen — already checked
+  cart.slots[slotIdx] = mesh; // reserve
+  _cartDropping.push({
+    mesh, cart, slotIdx,
+    vy: 0
+  });
+}
+
+function updateCartDrops(dt) {
+  for(let i = _cartDropping.length - 1; i >= 0; i--) {
+    const d = _cartDropping[i];
+    const cart = d.cart;
+    if(!cart || cart.completing) {
+      // Cart was completed/replaced mid-drop — parent block to scene and discard
+      scene.remove(d.mesh);
+      _cartDropping.splice(i, 1);
+      continue;
+    }
+    d.vy -= dt * 2.0;
+    if(d.vy < -0.5) d.vy = -0.5;
+    d.mesh.position.y += d.vy;
+    // Home horizontally to slot
+    const slotOffsetX = (d.slotIdx - (CART_SLOTS - 1) / 2) * SLOT_SPACING;
+    const targetX = cart.x + slotOffsetX;
+    d.mesh.position.x += (targetX - d.mesh.position.x) * Math.min(1, dt * 8);
+    d.mesh.position.z += (0 - d.mesh.position.z) * Math.min(1, dt * 8);
+
+    const restingY = (CART_ROW_Y - 0.7) + CART_HEIGHT * 0.35 - CART_HEIGHT/2; // matches cart offset
+    if(d.mesh.position.y <= restingY) {
+      // Snap and parent to cart
+      d.mesh.position.set(slotOffsetX, CART_HEIGHT * 0.35 - (CART_HEIGHT/2 + 0.05), 0);
+      d.mesh.rotation.set(0,0,0);
+      scene.remove(d.mesh);
+      cart.group.add(d.mesh);
+      cart.landedCount++;
+      _cartDropping.splice(i, 1);
+      playPop(0);
+      if(cart.landedCount >= CART_SLOTS) {
+        celebrateCart(cart);
+      }
+    }
+  }
+}
+
+let cartCount = 0;
+function celebrateCart(cart) {
+  cart.completing = true;
+  const burstPos = new THREE.Vector3(cart.x, CART_ROW_Y - 0.7 + CART_HEIGHT, 0);
+  for(let k = 0; k < 10; k++) spawnParticles3d(burstPos.clone(), cart.colorHex);
+  playPop(2);
+  // Increment the cart counter with a brief pulse animation
+  cartCount++;
+  const ccEl = document.getElementById('cart-counter');
+  const ccVal = document.getElementById('cart-counter-val');
+  if(ccVal) ccVal.textContent = cartCount;
+  if(ccEl) {
+    ccEl.classList.add('pulse');
+    setTimeout(() => ccEl.classList.remove('pulse'), 200);
+  }
+  setTimeout(() => {
+    const startScale = cart.group.scale.x;
+    const t0 = performance.now();
+    const dur = 350;
+    // Find which slot index this cart currently occupies
+    const slotIdx = Math.round(((cart.x + BELT_STR/2) / CART_SPACING) - 0.5);
+    function step() {
+      const t = (performance.now() - t0) / dur;
+      if(t >= 1) { replaceCart(cart, slotIdx); return; }
+      const s = startScale * (1 - t);
+      cart.group.scale.set(s, s, s);
+      requestAnimationFrame(step);
+    }
+    step();
+  }, 500);
+}
+
+// ── Funnel → belt: blocks fall from the funnel directly onto the belt at the
+//    funnel's X position (centred at x=0). Only release if the belt spot under
+//    the funnel is clear (no other block currently occupying that region).
+
+// Convert funnel X (= 0 in world) to a loop parameter s on the UPPER run.
+// Upper run: s ∈ [0, BELT_STR), x = -BELT_STR/2 + s. So s when x=0 is BELT_STR/2.
+const FUNNEL_DROP_S = BELT_STR / 2;
+const FUNNEL_DROP_CLEARANCE = SP * 1.3; // require this much free s on either side
+
+let _funnelReleaseCooldown = 0;
+function releaseFromFunnelToBelt(dt) {
+  if(_funnelReleaseCooldown > 0) { _funnelReleaseCooldown -= dt; return; }
+  if(funnelBlocks.length === 0) return;
+
+  // Is the belt spot under the funnel free?
+  for(const bb of beltBlocks) {
+    // Compare loop distance on the upper run only
+    const ds = Math.abs(bb.s - FUNNEL_DROP_S);
+    if(ds < FUNNEL_DROP_CLEARANCE && bb.s < LOOP_STRAIGHT) return; // occupied
+  }
+
+  // Pick the oldest settled block (lowest Y) that isn't already in transit
+  let pickIdx = -1, pickY = Infinity;
+  for(let i = 0; i < funnelBlocks.length; i++) {
+    const fb = funnelBlocks[i];
+    if(fb.inTransit) continue;
+    if(fb.mesh.position.y < pickY) { pickY = fb.mesh.position.y; pickIdx = i; }
+  }
+  if(pickIdx === -1) return;
+  const fb = funnelBlocks[pickIdx];
+  funnelBlocks.splice(pickIdx, 1);
+  // Hand it to the belt at the funnel-X position
+  putBlockOnBelt(fb.mesh, fb.colorIdx, fb.colorHex, FUNNEL_DROP_S);
+  _funnelReleaseCooldown = 0.15;
+}
+
+setTimeout(() => { if(carts.length === 0) spawnInitialCarts(); }, 100);
+
+// Buffer of blocks currently resting in the funnel (waiting for a matching cart).
+// Each entry: { mesh, colorIdx, colorHex, px, py, pz, vx, vy, vz, settled, restY }
+let funnelBlocks = [];
+// Each funnelBlock still has a physics body — they can be jostled by new arrivals.
+// Keep small velocities so they can settle further if pushed.
+function updateFunnelBlocks(dt) {
+  const floorY = FUNNEL_BOTTOM_Y + SP * 0.5;
+  const radius = SP * 0.5;
+  for(let i=0; i<funnelBlocks.length; i++) {
+    const fb = funnelBlocks[i];
+    if(fb.inTransit) continue; // handled by updateInTransitBlocks
+    if(!fb.vx) { fb.vx = 0; fb.vy = 0; fb.vz = 0; }
+    // Gravity
+    fb.vy -= dt * 0.9;
+    if(fb.vy < -0.35) fb.vy = -0.35;
+    fb.mesh.position.x += fb.vx;
+    fb.mesh.position.y += fb.vy;
+    fb.mesh.position.z += fb.vz;
+    // Floor
+    if(fb.mesh.position.y < floorY) {
+      fb.mesh.position.y = floorY;
+      if(fb.vy < 0) fb.vy = -fb.vy * 0.2;
+      fb.vx *= 0.7; fb.vz *= 0.7;
+    }
+    // Funnel walls
+    const py = fb.mesh.position.y;
+    if(py <= FUNNEL_TOP_Y && py >= FUNNEL_BOTTOM_Y) {
+      const t = (py - FUNNEL_BOTTOM_Y) / (FUNNEL_TOP_Y - FUNNEL_BOTTOM_Y);
+      const maxR = FUNNEL_BOTTOM_R + (FUNNEL_TOP_R - FUNNEL_BOTTOM_R) * t - 0.15;
+      const dx = fb.mesh.position.x, dz = fb.mesh.position.z;
+      const r = Math.hypot(dx, dz);
+      if(r > maxR) {
+        const nx = dx / r, nz = dz / r;
+        fb.mesh.position.x = nx * maxR;
+        fb.mesh.position.z = nz * maxR;
+        const vDotN = fb.vx * nx + fb.vz * nz;
+        fb.vx -= 1.2 * vDotN * nx;
+        fb.vz -= 1.2 * vDotN * nz;
+        fb.vx *= 0.8; fb.vz *= 0.8;
+      }
+    }
+    // Collide with other settled blocks
+    for(let j=0; j<funnelBlocks.length; j++) {
+      if(i === j) continue;
+      const other = funnelBlocks[j];
+      const dx = fb.mesh.position.x - other.mesh.position.x;
+      const dy = fb.mesh.position.y - other.mesh.position.y;
+      const dz = fb.mesh.position.z - other.mesh.position.z;
+      const distSq = dx*dx + dy*dy + dz*dz;
+      const minDist = radius * 2;
+      if(distSq < minDist*minDist && distSq > 0.0001) {
+        const dist = Math.sqrt(distSq);
+        const nx = dx/dist, ny = dy/dist, nz = dz/dist;
+        const overlap = minDist - dist;
+        // Push apart — half each
+        fb.mesh.position.x += nx * overlap * 0.5;
+        fb.mesh.position.y += ny * overlap * 0.5;
+        fb.mesh.position.z += nz * overlap * 0.5;
+        other.mesh.position.x -= nx * overlap * 0.5;
+        other.mesh.position.y -= ny * overlap * 0.5;
+        other.mesh.position.z -= nz * overlap * 0.5;
+        if(!other.vx) { other.vx=0; other.vy=0; other.vz=0; }
+        // Exchange velocity along normal
+        const v1n = fb.vx*nx + fb.vy*ny + fb.vz*nz;
+        const v2n = other.vx*nx + other.vy*ny + other.vz*nz;
+        const diff = (v2n - v1n);
+        fb.vx += diff * nx * 0.5;   fb.vy += diff * ny * 0.5;   fb.vz += diff * nz * 0.5;
+        other.vx -= diff * nx * 0.5; other.vy -= diff * ny * 0.5; other.vz -= diff * nz * 0.5;
+      }
+    }
+    // Global damping so the pile settles
+    fb.vx *= 0.96; fb.vy *= 0.995; fb.vz *= 0.96;
+    // Clamp tiny velocities to zero
+    if(Math.abs(fb.vx) < 0.002) fb.vx = 0;
+    if(Math.abs(fb.vz) < 0.002) fb.vz = 0;
+    if(Math.abs(fb.vy) < 0.002 && fb.mesh.position.y <= floorY + 0.01) fb.vy = 0;
+  }
+}
+
+// ── Constants ──────────────────────────────────────────────────────────────
+// COLORS / COLOR_HEX hoisted earlier (before funnel/belt setup)
+const SHAPES    = ['cube'];
+
+let blocks=[], coreMesh=null, coreExposed=false, score=0;
+let currentGoal = null;
+let goalStars = 0;
+let currentLevel=1, tokens=0, levelLocked=false;
+let shotsLeft=0, lives=Infinity;
+
+// Shot budgets per level — generous enough to be beatable, tight enough to matter
+// Formula: roughly (total blocks / avg group size of 3) + buffer
+const LEVEL_SHOTS = [
+  40,  // Level 1
+  18,  // Level 2: Rocket    (34 blocks, ~12 groups, +6 buffer)
+  20,  // Level 3: Tree      (36 blocks, ~12 groups, +8 buffer)
+  22,  // Level 4: Castle    (39 blocks, ~13 groups, +9 buffer)
+  18,  // Level 5: Fish      (33 blocks, ~11 groups, +7 buffer)
+];
+
+function getShotBudget(level) {
+  const idx = Math.min(level-1, LEVEL_SHOTS.length-1);
+  return LEVEL_SHOTS[idx];
+}
+
+function updateShotsUI() {
+  const el = document.getElementById('shots-count');
+  el.textContent = shotsLeft;
+  el.className = shotsLeft <= 3 ? 'danger' : shotsLeft <= 6 ? 'warning' : '';
+}
+let currentBlock=rndBlock(), nextBlock=rndBlock();
+let particles3d=[], fallingBlocks=[], shakeAmt=0;
+
+// ── Object pool — pre-create meshes to avoid mid-frame allocation ──────────
+const POOL_SIZE = 120;
+const pool = [];
+const poolGeos = [
+  new THREE.SphereGeometry(0.08,5,5),
+  new THREE.OctahedronGeometry(0.09,0),
+];
+for(let i=0;i<POOL_SIZE;i++){
+  const geo = poolGeos[i%2];
+  const mat = new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:1});
+  const m = new THREE.Mesh(geo,mat);
+  m.visible=false;
+  scene.add(m);
+  pool.push({mesh:m,active:false});
+}
+function acquireParticle(){
+  for(const p of pool){ if(!p.active){ p.active=true; p.mesh.visible=true; return p; } }
+  return null; // pool exhausted — skip rather than allocate
+}
+function releaseParticle(p){
+  p.active=false; p.mesh.visible=false;
+  p.mesh.position.set(0,9999,0);
+}
+let proj={ active:false, mesh:null, trail:[], colorHex:'', shotCI:-1, shotSh:'', vx:0,vy:0,vz:0, travelled:0, maxDist:999, bounceCount:0, start:new THREE.Vector3() };
+
+// ── Trajectory preview ────────────────────────────────────────────────────
+let trajDots = [];
+let trajActive = false;
+let trajTarget = null;
+let lobMode = true;    // always on
+let lobCurX = 0, lobCurY = 0;
+let lobHolding = false; // true only while finger/mouse is down on cluster
+let lobSnappedBlock = null; // frozen snapshot of currentBlock at press time
+
+// ── Target reticle — ring drawn at the landing point on the cluster ──────────
+const _reticleRingGeo = new THREE.RingGeometry(0.28, 0.38, 32);
+const _reticleCrossGeo = new THREE.BufferGeometry();
+_reticleCrossGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+  -0.45,0,0,  0.45,0,0,   // horizontal bar
+   0,0,-0.45, 0,0,0.45    // vertical bar (in Z since ring is in XZ plane)
+]), 3));
+const _reticleRingMat  = new THREE.MeshBasicMaterial({color:0xffffff, side:THREE.DoubleSide, transparent:true, opacity:0.9, depthTest:false});
+const _reticleCrossMat = new THREE.LineBasicMaterial({color:0xffffff, transparent:true, opacity:0.7, depthTest:false});
+
+const targetReticle = new THREE.Group();
+const _reticleRing  = new THREE.Mesh(_reticleRingGeo, _reticleRingMat);
+const _reticleCross = new THREE.LineSegments(_reticleCrossGeo, _reticleCrossMat);
+// Tilt so ring faces camera (XZ plane → face up, we'll orient toward camera in animate)
+targetReticle.add(_reticleRing);
+targetReticle.add(_reticleCross);
+targetReticle.visible = false;
+scene.add(targetReticle);
+
+// ── 2D trajectory overlay — drawn directly in mousemove for zero lag ───────────
+const trajCanvas2D = document.getElementById('trajectoryCanvas');
+const trajCtx = trajCanvas2D.getContext('2d');
+
+function resizeTrajCanvas() {
+  trajCanvas2D.width  = window.innerWidth;
+  trajCanvas2D.height = window.innerHeight;
+}
+resizeTrajCanvas();
+window.addEventListener('resize', resizeTrajCanvas);
+
+// Project a 3D world point to 2D screen coordinates
+const _projVec = new THREE.Vector3();
+function projectToScreen(worldPos) {
+  _projVec.copy(worldPos).project(camera);
+  return {
+    x: ( _projVec.x * 0.5 + 0.5) * window.innerWidth,
+    y: (-_projVec.y * 0.5 + 0.5) * window.innerHeight
+  };
+}
+
+function drawTraj2D(points, aimPoint, color) {
+  trajCtx.clearRect(0, 0, trajCanvas2D.width, trajCanvas2D.height);
+  if(!points || points.length === 0) return;
+
+  // Project all points to screen
+  const screenPts = points.map(p => projectToScreen(new THREE.Vector3(p.x, p.y, p.z)));
+  const endPt = projectToScreen(aimPoint);
+
+  // Draw dashed line
+  trajCtx.beginPath();
+  trajCtx.setLineDash([6, 5]);
+  trajCtx.strokeStyle = color || '#00ccff';
+  trajCtx.lineWidth = 2;
+  trajCtx.globalAlpha = 0.85;
+  if(screenPts.length > 0) {
+    trajCtx.moveTo(screenPts[0].x, screenPts[0].y);
+    for(let i = 1; i < screenPts.length; i++) {
+      trajCtx.lineTo(screenPts[i].x, screenPts[i].y);
+    }
+    trajCtx.lineTo(endPt.x, endPt.y);
+  }
+  trajCtx.stroke();
+  trajCtx.setLineDash([]);
+
+  // Draw dots along the path
+  trajCtx.globalAlpha = 0.75;
+  trajCtx.fillStyle = color || '#00ccff';
+  screenPts.forEach((pt, i) => {
+    if(i % 2 !== 0) return;
+    trajCtx.beginPath();
+    trajCtx.arc(pt.x, pt.y, 2.5, 0, Math.PI*2);
+    trajCtx.fill();
+  });
+
+  // Draw target reticle at end point
+  trajCtx.globalAlpha = 1.0;
+  trajCtx.strokeStyle = '#ffffff';
+  trajCtx.lineWidth = 2;
+  trajCtx.setLineDash([]);
+  const r = 14;
+  // Outer ring
+  trajCtx.beginPath();
+  trajCtx.arc(endPt.x, endPt.y, r, 0, Math.PI*2);
+  trajCtx.stroke();
+  // Inner dot
+  trajCtx.beginPath();
+  trajCtx.arc(endPt.x, endPt.y, 3, 0, Math.PI*2);
+  trajCtx.fillStyle = '#ffffff';
+  trajCtx.fill();
+  // Crosshair lines
+  trajCtx.beginPath();
+  trajCtx.moveTo(endPt.x - r*1.6, endPt.y); trajCtx.lineTo(endPt.x - r*0.4, endPt.y);
+  trajCtx.moveTo(endPt.x + r*0.4, endPt.y); trajCtx.lineTo(endPt.x + r*1.6, endPt.y);
+  trajCtx.moveTo(endPt.x, endPt.y - r*1.6); trajCtx.lineTo(endPt.x, endPt.y - r*0.4);
+  trajCtx.moveTo(endPt.x, endPt.y + r*0.4); trajCtx.lineTo(endPt.x, endPt.y + r*1.6);
+  trajCtx.stroke();
+  trajCtx.globalAlpha = 1.0;
+}
+
+function clearTraj2D() {
+  trajCtx.clearRect(0, 0, trajCanvas2D.width, trajCanvas2D.height);
+}
+function clearGoalDebug() { const d=document.getElementById('goal-debug-label'); if(d) d.textContent=''; }
+
+// ── Projectile preview cube at lob origin ────────────────────────────────────
+// Shows the current projectile colour at the start of the trajectory
+let lobOriginMesh = null;
+
+function updateLobOriginMesh() {
+  const block = snappedBlock || currentBlock;
+  if(!block) return;
+
+  // Create or recreate if color changed
+  if(!lobOriginMesh || lobOriginMesh.userData.colorHex !== block.colorHex) {
+    if(lobOriginMesh) scene.remove(lobOriginMesh);
+    const geo = new THREE.BoxGeometry(0.30, 0.30, 0.30);
+    const mat = new THREE.MeshLambertMaterial({ color: new THREE.Color(block.colorHex) });
+    lobOriginMesh = new THREE.Mesh(geo, mat);
+    // Outline
+    const edgesGeo = new THREE.EdgesGeometry(geo);
+    const edgesMat = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 1 });
+    lobOriginMesh.add(new THREE.LineSegments(edgesGeo, edgesMat));
+    lobOriginMesh.userData.colorHex = block.colorHex;
+    scene.add(lobOriginMesh);
+  }
+
+  // Position at lob launch point — only update every 3 frames
+  if(cacheFrame % 10 === 0) {
+    const pos = getLobLaunchPos();
+    lobOriginMesh.position.copy(pos);
+  }
+  lobOriginMesh.rotation.y += 0.02;
+  lobOriginMesh.visible = !proj.active;
+}
+
+// ── Pre-allocated trajectory dot pool ────────────────────────────────────────
+const TRAJ_DOT_COUNT = 55; // max dots we'll ever show
+const TRAJ_DOT_GEO   = new THREE.SphereGeometry(0.07, 5, 5);
+const TRAJ_END_GEO   = new THREE.SphereGeometry(0.14, 6, 6);
+const TRAJ_DOT_MAT   = new THREE.MeshBasicMaterial({color:0x00ccff, transparent:true, opacity:0.85});
+const TRAJ_END_MAT   = new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:1.0});
+const trajDotPool = [];
+for(let i=0;i<TRAJ_DOT_COUNT;i++){
+  const m = new THREE.Mesh(i===TRAJ_DOT_COUNT-1 ? TRAJ_END_GEO : TRAJ_DOT_GEO,
+                            i===TRAJ_DOT_COUNT-1 ? TRAJ_END_MAT : TRAJ_DOT_MAT);
+  m.visible = false;
+  scene.add(m);
+  trajDotPool.push(m);
+}
+
+function getLaunchPos(px, py) {
+  // px,py are screen coords of the tap/finger
+  const ndc = new THREE.Vector3(
+    (px / window.innerWidth)  * 2 - 1,
+   -(py / window.innerHeight) * 2 + 1,
+    0.5
+  );
+  ndc.unproject(camera);
+  const camPos = camera.position.clone();
+  const rayDir = ndc.sub(camPos).normalize();
+  const tParam = (8 - camPos.z) / rayDir.z;
+  return camPos.clone().addScaledVector(rayDir, tParam);
+}
+
+// Launch position for lob — fixed world point at action bar level
+// Sits below the cluster so the arc has a meaningful upward component
+function getLobLaunchPos() {
+  // Launch origin: same X and Y as pivot (cluster centre),
+  // pushed forward toward the camera so it sits in front of the cluster
+  const pivotPos = new THREE.Vector3();
+  pivot.getWorldPosition(pivotPos);
+  return new THREE.Vector3(
+    pivotPos.x,       // horizontally centred with cluster
+    pivotPos.y + originYOffset,
+    pivotPos.z + 7    // in front of cluster, toward camera
+  );
+}
+
+// Draw lob button preview (same color as current block but blue-tinted border)
+function drawLobPreview() {
+  const canvas = document.getElementById('lobPreview');
+  if(!canvas) return;
+  const block = snappedBlock || currentBlock;
+  if(!block) return;
+  drawPreview2D(canvas, block, 60);
+  // Blue arc overlay to signal lob mode
+  const ctx = canvas.getContext('2d');
+  const cx=30,cy=30,r=22;
+  ctx.strokeStyle='rgba(100,200,255,0.7)'; ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.arc(cx, cy+8, r, Math.PI, 0); // bottom half arc = lob shape
+  ctx.stroke();
+}
+
+// Simulate lob arc: parabolic arc up then down to target point
+function simulateLobPath(launchPos, targetWorldPos) {
+  const toTarget = targetWorldPos.clone().sub(launchPos);
+  const dist = toTarget.length();
+  if(dist < 0.1) return [];
+
+  // Arc height: use a generous fixed amount + distance-based scaling
+  // Must be large enough to be visible from camera (cluster is at ~y=0, camera at y=4)
+  // Fixed arc height — large enough to be clearly visible from camera angle
+  const arcHeight = 3.92;
+  const steps = 50;
+  const points = [];
+  const invQ = pivot.quaternion.clone().invert();
+  const pivotPos = new THREE.Vector3();
+  pivot.getWorldPosition(pivotPos);
+  const projR = PROJ_R['cube'];
+
+  for(let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    // Linear XZ, parabolic Y (arc goes UP then DOWN)
+    const pos = new THREE.Vector3(
+      launchPos.x + (targetWorldPos.x - launchPos.x) * t,
+      launchPos.y + (targetWorldPos.y - launchPos.y) * t + arcHeight * 4 * t * (1 - t),
+      launchPos.z + (targetWorldPos.z - launchPos.z) * t
+    );
+
+    // Check collision
+    _simWorld.set(pos.x-pivotPos.x, pos.y-pivotPos.y, pos.z-pivotPos.z);
+    _simLocal.copy(_simWorld).applyQuaternion(invQ);
+    let hit = false;
+    for(const b of blocks) {
+      if(!b.alive) continue;
+      if(Math.hypot(_simLocal.x-b.wx,_simLocal.y-b.wy,_simLocal.z-b.wz) < projR+(PROJ_R[b.shape]||0.42)*0.9){
+        hit=true; break;
+      }
+    }
+    points.push({x:pos.x, y:pos.y, z:pos.z, hit});
+    if(hit) break;
+  }
+  return points;
+}
+
+// Reusable vectors — avoid allocations in hot paths
+const _aimNDC2    = new THREE.Vector3();
+const _aimRayDir2 = new THREE.Vector3();
+const _simLocal  = new THREE.Vector3();
+const _simWorld  = new THREE.Vector3();
+const _hitWorld  = new THREE.Vector3();
+const _pWorld    = new THREE.Vector3();
+const _inDir     = new THREE.Vector3();
+const _torAxis   = new THREE.Vector3();
+const _nLocal    = new THREE.Vector3();
+const _nWorld    = new THREE.Vector3();
+const _vel       = new THREE.Vector3();
+const _lobNext   = new THREE.Vector3();
+const _strNext   = new THREE.Vector3();
+const _projQ     = new THREE.Quaternion();
+const _rotQ      = new THREE.Quaternion();
+const _rotAxis   = new THREE.Vector3();
+
+function simulatePath(launchPos, targetWorldPos) {
+  const toTarget = targetWorldPos.clone().sub(launchPos);
+  const dist = toTarget.length();
+  const dir = toTarget.normalize();
+  const SPEED = dist / 28; // fixed speed for trajectory (power only affects real shot)
+  let vx=dir.x*SPEED, vy=dir.y*SPEED, vz=dir.z*SPEED;
+  let x=launchPos.x, y=launchPos.y, z=launchPos.z;
+  const points = [];
+  const maxSteps = 80;
+  let travelled = 0;
+  const projR = PROJ_R[(snappedBlock||currentBlock).shape]||0.44;
+  const alivePivotBlocks = blocks.filter(b=>b.alive); // cache alive list once
+
+  // Pre-invert the pivot matrix once instead of calling worldToLocal 40 times
+  const invQ = pivot.quaternion.clone().invert();
+  const pivotPos = new THREE.Vector3();
+  pivot.getWorldPosition(pivotPos);
+
+  for(let i=0;i<maxSteps;i++){
+    x+=vx; y+=vy; z+=vz;
+    travelled+=SPEED;
+    if(travelled > dist*3.5) break;
+
+    // Convert world pos to pivot-local using pre-inverted quaternion (no allocation)
+    _simWorld.set(x-pivotPos.x, y-pivotPos.y, z-pivotPos.z);
+    _simLocal.copy(_simWorld).applyQuaternion(invQ);
+
+    let hit = false;
+    for(const b of alivePivotBlocks){
+      const d=Math.hypot(_simLocal.x-b.wx,_simLocal.y-b.wy,_simLocal.z-b.wz);
+      if(d < projR+(PROJ_R[b.shape]||0.44)*0.9){ hit=true; break; }
+    }
+    points.push({x,y,z,hit});
+    if(hit) break;
+  }
+  return points;
+}
+
+function clearTrajDots() {
+  trajDotPool.forEach(m=>{ m.visible=false; });
+  trajDots=[];
+  targetReticle.visible = false;
+  clearTraj2D();
+}
+
+function drawLobTrajectory() {
+  clearTrajDots();
+  if(!blocks.some(b=>b.alive)) return;
+  const launchPos = getLobLaunchPos();
+  // Use current finger position to find aim point, fall back to cluster centre
+  const aimX = lobCurX || window.innerWidth/2;
+  const aimY = lobCurY || window.innerHeight/2;
+  mouse2d.x=(aimX/window.innerWidth)*2-1;
+  mouse2d.y=-(aimY/window.innerHeight)*2+1;
+  raycaster.setFromCamera(mouse2d, camera);
+  // Lightweight aim: unproject cursor ray, find closest alive block centre
+  const _aimNDC = new THREE.Vector3(
+    (aimX/window.innerWidth)*2-1,
+   -(aimY/window.innerHeight)*2+1, 0.5
+  );
+  _aimNDC.unproject(camera);
+  const _aimRayDir = _aimNDC.sub(camera.position.clone()).normalize();
+  // Find block whose world position is closest to the ray
+  const _camPos = camera.position;
+  let bestBlock = null, bestDist = Infinity;
+  pivot.getWorldPosition(_pWorld);
+  const invQ2 = pivot.quaternion.clone().invert();
+  blocks.filter(b=>b.alive).forEach(b=>{
+    // Convert block to world pos
+    _simLocal.set(b.wx, b.wy, b.wz).applyQuaternion(pivot.quaternion).add(_pWorld);
+    // Distance from ray to block centre
+    const toBlock = _simLocal.clone().sub(_camPos);
+    const proj2 = toBlock.dot(_aimRayDir);
+    if(proj2 < 0) return;
+    const distToRay = toBlock.clone().sub(_aimRayDir.clone().multiplyScalar(proj2)).length();
+    if(distToRay < bestDist) { bestDist = distToRay; bestBlock = b; }
+  });
+  const aimPoint = new THREE.Vector3();
+  if(bestBlock) {
+    aimPoint.set(bestBlock.wx, bestBlock.wy, bestBlock.wz).applyQuaternion(pivot.quaternion).add(_pWorld);
+  } else {
+    const fb = blocks.find(b=>b.alive);
+    if(fb) aimPoint.set(fb.wx,fb.wy,fb.wz).applyQuaternion(pivot.quaternion).add(_pWorld);
+  }
+  const points = simulateLobPath(launchPos, aimPoint);
+  // Reuse pool meshes — no allocation, no GC pressure
+  let poolIdx = 0;
+  points.forEach((p,i)=>{
+    if(i===points.length-1 || poolIdx>=TRAJ_DOT_COUNT-1) return;
+    const m = trajDotPool[poolIdx++];
+    m.position.set(p.x,p.y,p.z);
+    m.visible = true;
+  });
+  // Final dot at exact cursor position
+  const endM = trajDotPool[TRAJ_DOT_COUNT-1];
+  endM.position.copy(aimPoint);
+  endM.visible = true;
+
+  // Position target reticle at aimPoint, facing camera
+  targetReticle.position.copy(aimPoint);
+  // Orient ring to face camera
+  targetReticle.lookAt(camera.position);
+  // Pulse scale gently
+  const pulse = 1.0 + 0.12 * Math.sin(Date.now() * 0.006);
+  targetReticle.scale.setScalar(pulse);
+  targetReticle.visible = true;
+}
+
+function drawTrajectory() {
+  clearTrajDots();
+  if(!trajTarget || !trajTarget.alive) return;
+  const launchPos = getLaunchPos(holdCurX, holdCurY);
+  // For trajectory preview, aim at the exact point under the crosshair
+  mouse2d.x=(holdCurX/window.innerWidth)*2-1;
+  mouse2d.y=-(holdCurY/window.innerHeight)*2+1;
+  raycaster.setFromCamera(mouse2d, camera);
+  const trajMeshes=[], trajMeshMap={};
+  blocks.filter(b=>b.alive).forEach(b=>{
+    b.mesh.traverse(c=>{ if(c.isMesh&&c.userData.isMainMesh){trajMeshes.push(c);trajMeshMap[c.uuid]=b;} });
+  });
+  const trajHits = raycaster.intersectObjects(trajMeshes);
+  const aimPoint = trajHits.length ? trajHits[0].point.clone() : (() => { const wp=new THREE.Vector3(); trajTarget.mesh.getWorldPosition(wp); return wp; })();
+  const points = simulatePath(launchPos, aimPoint);
+
+  const col = new THREE.Color(snappedBlock ? snappedBlock.colorHex : currentBlock.colorHex);
+  // Reuse pool meshes for straight trajectory too
+  let sPoolIdx = 0;
+  points.forEach((p, i) => {
+    if(i===points.length-1 || sPoolIdx>=TRAJ_DOT_COUNT-1) return;
+    const m = trajDotPool[sPoolIdx++];
+    m.position.set(p.x,p.y,p.z);
+    m.material = TRAJ_DOT_MAT;
+    m.visible = true;
+  });
+  // End dot
+  const sEnd = trajDotPool[TRAJ_DOT_COUNT-1];
+  if(points.length>0){
+    const last=points[points.length-1];
+    sEnd.position.set(last.x,last.y,last.z);
+    sEnd.material = TRAJ_END_MAT;
+    sEnd.visible = true;
+  }
+}
+
+// Get all unique (colorIdx, shape) combos that still exist in alive blocks
+function aliveTypes() {
+  const seen = new Set();
+  const types = [];
+  for(const b of blocks) {
+    if(!b.alive) continue;
+    const key = b.colorIdx + '|' + b.shape;
+    if(!seen.has(key)){
+      seen.add(key);
+      types.push({colorIdx:b.colorIdx,color:b.color,colorHex:b.colorHex,shape:b.shape});
+    }
+  }
+  return types;
+}
+
+// Always returns a block type that has a live match on the target
+function rndBlock() {
+  const types = aliveTypes();
+  if(types.length > 0) return types[Math.floor(Math.random()*types.length)];
+  // Fallback only if island is completely empty (rebuilding)
+  const ci=Math.floor(Math.random()*COLORS.length);
+  return {colorIdx:ci,color:COLORS[ci],colorHex:COLOR_HEX[ci],shape:SHAPES[Math.floor(Math.random()*SHAPES.length)]};
+}
+
+// Pick a block type that is DIFFERENT from the excluded one (for variety)
+function rndBlockExcluding(exclude) {
+  const types = aliveTypes();
+  if(types.length === 0) return rndBlock();
+  // Try to pick a different type for variety
+  const different = types.filter(t=>!(t.colorIdx===exclude.colorIdx && t.shape===exclude.shape));
+  const pool = different.length > 0 ? different : types;
+  return pool[Math.floor(Math.random()*pool.length)];
+}
+
+function makeGeo(shape) {
+  if(shape==='cube')   return new THREE.BoxGeometry(0.39,0.39,0.39);
+  if(shape==='sphere') return new THREE.SphereGeometry(0.44,20,20);
+  // pyramid — 4-sided with bevelled look via more segments
+  return new THREE.ConeGeometry(0.48,0.82,4);
+}
+
+// Cache geometries for performance
+const GEO_CACHE = {};
+function getCachedGeo(shape) {
+  if(!GEO_CACHE[shape]) GEO_CACHE[shape]=makeGeo(shape);
+  return GEO_CACHE[shape];
+}
+
+// Outline geo cache — slightly scaled-up version of each shape
+const OUTLINE_CACHE = {};
+function getOutlineGeo(shape) {
+  if(!OUTLINE_CACHE[shape]) {
+    if(shape==='cube')    OUTLINE_CACHE[shape]=new THREE.BoxGeometry(0.42,0.42,0.42);
+    else if(shape==='sphere') OUTLINE_CACHE[shape]=new THREE.SphereGeometry(0.475,20,20);
+    else                  OUTLINE_CACHE[shape]=new THREE.ConeGeometry(0.52,0.88,4);
+  }
+  return OUTLINE_CACHE[shape];
+}
+
+// Highlight geo — small bright cap at top of shape
+const HIGHLIGHT_CACHE = {};
+function getHighlightGeo(shape) {
+  if(!HIGHLIGHT_CACHE[shape]) {
+    if(shape==='sphere') HIGHLIGHT_CACHE[shape]=new THREE.SphereGeometry(0.18,8,8);
+    else                 HIGHLIGHT_CACHE[shape]=new THREE.SphereGeometry(0.14,8,8);
+  }
+  return HIGHLIGHT_CACHE[shape];
+}
+
+function makeBlockMesh(shape, color) {
+  const c = new THREE.Color(color);
+  const group = new THREE.Group();
+
+  // Dark outline — slightly larger, rendered first (backface trick via scale)
+  const outlineMat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(0x000000), side: THREE.BackSide
+  });
+  const outline = new THREE.Mesh(getOutlineGeo(shape), outlineMat);
+  group.add(outline);
+
+  // Main colored face
+  const mat = new THREE.MeshBasicMaterial({ color: c });
+  const main = new THREE.Mesh(getCachedGeo(shape), mat);
+  group.add(main);
+
+  // Store color ref for raycasting (we need to hit the main mesh)
+  main.userData.isMainMesh = true;
+  group.userData.color = color;
+  group.userData.shape = shape;
+
+  return group;
+}
+
+// Glowing wireframe overlay for each block (adds depth)
+function makeWireOverlay(shape, color) {
+  const c = new THREE.Color(color);
+  const edges = new THREE.EdgesGeometry(getCachedGeo(shape));
+  const mat = new THREE.LineBasicMaterial({ color: c.clone().lerp(new THREE.Color(0xffffff),0.6), transparent:true, opacity:0.25 });
+  return new THREE.LineSegments(edges, mat);
+}
+
+// ── 2D preview (single canvas context, iOS safe) ───────────────────────────
+function drawPreview2D(canvas, block, size) {
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,size,size);
+  const cx=size/2, cy=size/2, r=size*0.36;
+
+  const col = block.colorHex;
+  const outline = 'rgba(0,0,0,0.85)';
+  const outlineW = size * 0.055;
+
+  function drawShape(fillColor, extraR) {
+    const er = r + (extraR||0);
+    ctx.fillStyle = fillColor;
+    if(block.shape==='cube') {
+      const s = er * 0.82;
+      ctx.beginPath(); ctx.rect(cx-s, cy-s, s*2, s*2); ctx.fill();
+    } else if(block.shape==='sphere') {
+      ctx.beginPath(); ctx.arc(cx, cy, er, 0, Math.PI*2); ctx.fill();
+    } else {
+      const h=er*1.15, hw=er*1.0;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy-h*0.65);
+      ctx.lineTo(cx+hw, cy+h*0.5);
+      ctx.lineTo(cx-hw, cy+h*0.5);
+      ctx.closePath(); ctx.fill();
+    }
+  }
+
+  // Dark outline (draw slightly larger in black first)
+  drawShape(outline, outlineW);
+  // Main color fill
+  drawShape(col, 0);
+
+}
+
+
+
+function setCubeColor(cubeId, hex) {
+  const cube = document.getElementById(cubeId);
+  if(!cube) return;
+  // Slightly vary brightness per face for 3D illusion
+  const col = new THREE.Color(hex);
+  const faces = ['front','back','left','right','top','bottom'];
+  const brightness = [1.0, 0.5, 0.7, 0.7, 1.2, 0.4];
+  cube.querySelectorAll('.face').forEach((f,i) => {
+    const c = col.clone().multiplyScalar(brightness[i]);
+    f.style.background = `rgb(${Math.round(c.r*255)},${Math.round(c.g*255)},${Math.round(c.b*255)})`;
+  });
+}
+function updateUI() {
+  drawPreview2D(document.getElementById('currentPreview'), currentBlock, 86);
+  drawPreview2D(document.getElementById('nextPreview'),    nextBlock,    60);
+  drawLobPreview();
+  setCubeColor('fireCube', currentBlock.colorHex);
+  setCubeColor('swapCube', nextBlock.colorHex);
+
+  // Debug swatch — shows currentBlock when idle, lobSnappedBlock when holding
+  const dbg = document.getElementById('fire-debug-swatch');
+  if(dbg) dbg.style.background = currentBlock.colorHex; // always mirrors Fire button
+  // Force origin mesh to refresh color on next frame
+  if(lobOriginMesh) lobOriginMesh.userData.colorHex = null;
+
+  // Keep snappedBlock in sync with whatever is showing in the button
+  // UNLESS the player is actively holding (mid-aim) — don't change mid-shot
+  if(!isHolding) {
+    snappedBlock = {colorIdx:currentBlock.colorIdx, color:currentBlock.color,
+                    colorHex:currentBlock.colorHex, shape:currentBlock.shape};
+  }
+}
+
+// ── Allow tapping either slot to select it as the active projectile ────────
+function swapToNext() {
+  const tmp = currentBlock;
+  currentBlock = nextBlock;
+  // After swap, generate a fresh valid next block (different from new current if possible)
+  nextBlock = rndBlockExcluding(currentBlock);
+  updateUI();
+  if(blocks.some(b=>b.alive)) pickNewGoalForColor(currentBlock.colorIdx);
+  // visual flash on swap
+  const cur = document.getElementById('currentPreview');
+  cur.style.transition = 'transform 0.12s';
+  cur.style.transform = 'scale(1.18)';
+  setTimeout(()=>{ cur.style.transform = 'scale(1)'; }, 130);
+}
+
+document.getElementById('nextPreview').addEventListener('click', e=>{ e.stopPropagation(); swapToNext(); });
+document.getElementById('swapCubeWrap').addEventListener('click', e=>{ e.stopPropagation(); swapToNext(); });
+document.getElementById('nextPreview').addEventListener('touchend', e=>{ e.preventDefault(); e.stopPropagation(); swapToNext(); }, {passive:false});
+document.getElementById('swapCubeWrap').addEventListener('touchend', e=>{ e.preventDefault(); e.stopPropagation(); swapToNext(); }, {passive:false});
+
+// Fire slot — fires lob at current aim point (centre of screen if no hover)
+document.getElementById('fire-slot').addEventListener('click', e=>{
+  e.stopPropagation();
+  const cx = lobCurX || window.innerWidth/2;
+  const cy = lobCurY || window.innerHeight/2;
+  fireLob(cx, cy);
+});
+document.getElementById('fire-slot').addEventListener('touchend', e=>{
+  e.preventDefault(); e.stopPropagation();
+  const t = e.changedTouches[0];
+  fireLob(t.clientX, t.clientY);
+}, {passive:false});
+
+// ── Lob button — hold shows arc trajectory, release fires lob ────────────────
+
+
+
+const lobSlot = document.getElementById('lob-slot');
+// Lob slot: click/tap to TOGGLE lob mode on/off
+function toggleLobMode() {
+  lobMode = !lobMode;
+  const slot = document.getElementById('lob-slot');
+  const label = document.getElementById('lob-label');
+  if(lobMode) {
+    slot.style.outline = '3px solid #00ccff';
+    slot.style.borderRadius = '50%';
+    label.textContent = 'LOB ON';
+  } else {
+    slot.style.outline = '';
+    label.textContent = 'Lob';
+    clearTrajDots();
+  }
+}
+lobSlot.addEventListener('click',     e=>{ e.stopPropagation(); getAC(); toggleLobMode(); });
+lobSlot.addEventListener('touchend',  e=>{ e.preventDefault(); e.stopPropagation(); getAC(); toggleLobMode(); }, {passive:false});
+
+// While lob mode is on, track mouse/finger — set dirty flag so trajectory redraws only on move
+threeCanvas.addEventListener('mousemove', e=>{
+  if(!lobMode || !lobHolding) return;
+  lobCurX=e.clientX; lobCurY=e.clientY;
+  updateTrajImmediate();
+});
+threeCanvas.addEventListener('touchmove', e=>{
+  if(!lobMode || !lobHolding) return;
+  e.preventDefault();
+  lobCurX=e.touches[0].clientX; lobCurY=e.touches[0].clientY;
+  updateTrajImmediate();
+}, {passive:false});
+
+function updateTrajImmediate() {
+  // NEW: while aiming, keep the projectile colour in sync with whatever block
+  //      the cursor is currently pointing at.
+  if(lobHolding && lobSnappedBlock) {
+    const _aim = getBlockAt(lobCurX, lobCurY);
+    if(_aim && _aim.colorIdx !== lobSnappedBlock.colorIdx) {
+      lobSnappedBlock.colorIdx = _aim.colorIdx;
+      lobSnappedBlock.color    = _aim.color;
+      lobSnappedBlock.colorHex = _aim.colorHex;
+      lobSnappedBlock.shape    = _aim.shape;
+      const _dbg = document.getElementById('fire-debug-swatch');
+      if(_dbg) _dbg.style.background = _aim.colorHex;
+    }
+  }
+
+  // Compute aim point and path, draw on 2D canvas immediately
+  const launchPos = getLobLaunchPos();
+  const aimX = lobCurX, aimY = lobCurY;
+
+  // Fast block distance check (no raycasting)
+  pivot.getWorldPosition(_pWorld);
+  let bestBlock = null, bestDist = Infinity;
+  const camPos2 = camera.position;
+  const ndcX = (aimX/window.innerWidth)*2-1;
+  const ndcY = -(aimY/window.innerHeight)*2+1;
+  _aimNDC2.set(ndcX, ndcY, 0.5).unproject(camera);
+  _aimRayDir2.copy(_aimNDC2).sub(camPos2).normalize();
+
+  blocks.filter(b=>b.alive).forEach(b=>{
+    _simLocal.set(b.wx,b.wy,b.wz).applyQuaternion(pivot.quaternion).add(_pWorld);
+    const toBlock = _simLocal.clone().sub(camPos2);
+    const p2 = toBlock.dot(_aimRayDir2);
+    if(p2 < 0) return;
+    const dtr = toBlock.clone().sub(_aimRayDir2.clone().multiplyScalar(p2)).length();
+    if(dtr < bestDist){ bestDist=dtr; bestBlock=b; }
+  });
+
+  const aimPoint3D = new THREE.Vector3();
+  if(bestBlock) {
+    aimPoint3D.set(bestBlock.wx,bestBlock.wy,bestBlock.wz).applyQuaternion(pivot.quaternion).add(_pWorld);
+  } else {
+    const fb = blocks.find(b=>b.alive);
+    if(fb) aimPoint3D.set(fb.wx,fb.wy,fb.wz).applyQuaternion(pivot.quaternion).add(_pWorld);
+  }
+
+  const points = simulateLobPath(launchPos, aimPoint3D);
+  const block = lobSnappedBlock || snappedBlock || currentBlock;
+  const col = block ? block.colorHex : '#00ccff';
+  drawTraj2D(points, aimPoint3D, col);
+}
+
+// Fire lob on click/tap on canvas when lob mode is on
+function fireLob(clientX, clientY) {
+  // Always clear trajectory and reset hold state when fireLob is called
+  lobHolding = false;
+  clearTraj2D();
+  lobSnappedBlock = null;
+  if(!lobMode || proj.active || levelLocked) return;
+  const _m=[], _b={};
+  mouse2d.x=(clientX/window.innerWidth)*2-1;
+  mouse2d.y=-(clientY/window.innerHeight)*2+1;
+  raycaster.setFromCamera(mouse2d,camera);
+  blocks.filter(b=>b.alive).forEach(b=>{ b.mesh.traverse(c=>{ if(c.isMesh&&c.userData.isMainMesh){_m.push(c);_b[c.uuid]=b;} }); });
+  const _h=raycaster.intersectObjects(_m);
+  if(!_h.length) return;
+  const target=_b[_h[0].object.uuid]; if(!target) return;
+  clearTrajDots();
+  clearTraj2D();
+  // NEW: projectile color matches the targeted block. Every shot is a guaranteed match.
+  const projBlock = {
+    colorIdx: target.colorIdx,
+    color:    target.color,
+    colorHex: target.colorHex,
+    shape:    target.shape
+  };
+  launchProjectile(target, clientX, clientY, projBlock, 0, _h[0].point.clone(), true);
+}
+threeCanvas.addEventListener('click',    e=>{ fireLob(e.clientX, e.clientY); });
+threeCanvas.addEventListener('touchend', e=>{ if(lobMode){ e.preventDefault(); const t=e.changedTouches[0]; fireLob(t.clientX,t.clientY); } }, {passive:false});
+
+// ── Hold to aim, drag crosshair, release to fire ─────────────────────────
+let holdTimer = null;
+let isHolding = false;
+let holdCurX = 0, holdCurY = 0;
+let snappedBlock = null; // always mirrors currentBlock when not aiming
+const HOLD_MS = 150;
+const MAX_CHARGE_MS = 1800; // full charge after 1.8s of holding
+let holdStartTime = 0;      // when hold began
+let chargeLevel = 0;        // 0..1
+let chargeRafId = null;     // requestAnimationFrame for charge update
+
+function getBlockAt(clientX, clientY) {
+  mouse2d.x=(clientX/window.innerWidth)*2-1;
+  mouse2d.y=-(clientY/window.innerHeight)*2+1;
+  raycaster.setFromCamera(mouse2d, camera);
+  const aliveMeshes=[], meshMap={};
+  blocks.filter(b=>b.alive).forEach(b=>{
+    b.mesh.traverse(child=>{
+      if(child.isMesh && child.userData.isMainMesh){ aliveMeshes.push(child); meshMap[child.uuid]=b; }
+    });
+  });
+  const hits = raycaster.intersectObjects(aliveMeshes);
+  return hits.length ? meshMap[hits[0].object.uuid] : null;
+}
+
+function startHold(clientX, clientY) {
+  if(proj.active || levelLocked) return;
+  if(lobMode) {
+    // Freeze the current block at press time — this is what will be fired
+    // NEW: projectile color comes from the block under the cursor at press time.
+    // If not aiming at a block, fall back to a random color.
+    const _aimed = getBlockAt(clientX, clientY);
+    if(_aimed) {
+      lobSnappedBlock = {
+        colorIdx: _aimed.colorIdx, color: _aimed.color,
+        colorHex: _aimed.colorHex, shape: _aimed.shape
+      };
+    } else {
+      const _r = rndBlock();
+      lobSnappedBlock = { colorIdx: _r.colorIdx, color: _r.color, colorHex: _r.colorHex, shape: _r.shape };
+    }
+    const _dbg = document.getElementById('fire-debug-swatch');
+    if(_dbg) _dbg.style.background = lobSnappedBlock.colorHex;
+    lobHolding = true;
+    lobCurX = clientX; lobCurY = clientY;
+    updateTrajImmediate();
+    return;
+  }
+  holdCurX=clientX; holdCurY=clientY;
+  isHolding=false;
+  holdStartTime = performance.now();
+  chargeLevel = 0;
+  // snappedBlock is always kept in sync by updateUI — nothing to do here
+  holdTimer = setTimeout(()=>{
+    isHolding=true;
+    startChargeSound();
+    // Start charge animation loop
+    function updateCharge() {
+      const elapsed = performance.now() - holdStartTime - HOLD_MS;
+      chargeLevel = Math.min(1, Math.max(0, elapsed / MAX_CHARGE_MS));
+      if(isHolding) chargeRafId = requestAnimationFrame(updateCharge);
+    }
+    chargeRafId = requestAnimationFrame(updateCharge);
+    trajTarget = getBlockAt(holdCurX, holdCurY);
+    // Show crosshair at current position
+    const ch=document.getElementById('crosshair');
+    const cr=document.getElementById('crosshair-ring');
+    ch.style.display=cr.style.display='block';
+    ch.style.left=cr.style.left=holdCurX+'px';
+    ch.style.top=cr.style.top=holdCurY+'px';
+    ch.style.borderColor=cr.style.borderColor=currentBlock.colorHex;
+  }, HOLD_MS);
+}
+
+function moveHold(clientX, clientY) {
+  holdCurX=clientX; holdCurY=clientY;
+  if(!isHolding) return;
+  // Move crosshair to follow finger
+  const ch=document.getElementById('crosshair');
+  const cr=document.getElementById('crosshair-ring');
+  ch.style.left=cr.style.left=clientX+'px';
+  ch.style.top=cr.style.top=clientY+'px';
+  // Update aim target
+  trajTarget = getBlockAt(clientX, clientY);
+}
+
+function drawPreviewCharge(charge) {
+  if(charge <= 0) return;
+  const canvas = document.getElementById('currentPreview');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const cx = w/2, cy = h/2;
+
+  // Redraw base shape first
+  drawPreview2D(canvas, snappedBlock || currentBlock, w);
+
+  // Pulsing energy overlay — colour matches power ring
+  const hue = charge < 0.5
+    ? 60 - charge * 40          // white-yellow
+    : 40 - (charge-0.5) * 80;  // orange-red
+  const pulse = 0.3 + 0.25 * Math.sin(Date.now() * 0.008 + charge * 10);
+
+  // Inner glow fill
+  const grad = ctx.createRadialGradient(cx,cy,0,cx,cy,cx*0.9);
+  grad.addColorStop(0,   `hsla(${hue},100%,65%,${pulse * charge * 0.55})`);
+  grad.addColorStop(0.6, `hsla(${hue},100%,55%,${pulse * charge * 0.25})`);
+  grad.addColorStop(1,   `hsla(${hue},100%,45%,0)`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+
+  // Edge sparks at high charge
+  if(charge > 0.5) {
+    const sparkCount = Math.floor(charge * 6);
+    for(let i = 0; i < sparkCount; i++) {
+      const angle = (Date.now() * 0.003 + i * Math.PI * 2 / sparkCount) % (Math.PI*2);
+      const dist  = cx * (0.7 + 0.3 * Math.sin(Date.now()*0.01 + i));
+      const sx = cx + Math.cos(angle) * dist;
+      const sy = cy + Math.sin(angle) * dist;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 2 + charge * 3, 0, Math.PI*2);
+      ctx.fillStyle = `hsla(${hue},100%,80%,${charge * 0.9})`;
+      ctx.fill();
+    }
+  }
+}
+
+function drawPowerRing(charge) {
+  const btn = document.getElementById('currentPreview');
+  const rect = btn.getBoundingClientRect();
+  const ring = document.getElementById('power-ring');
+  const size = rect.width + 18;
+  ring.width = size; ring.height = size;
+  ring.style.display = 'block';
+  ring.style.left = (rect.left - 9) + 'px';
+  ring.style.top  = (rect.top  - 9) + 'px';
+  ring.style.width  = size + 'px';
+  ring.style.height = size + 'px';
+
+  const ctx = ring.getContext('2d');
+  ctx.clearRect(0, 0, size, size);
+  const cx = size/2, cy = size/2, r = size/2 - 4;
+
+  // Background track
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);
+  ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.lineWidth=4; ctx.stroke();
+
+  if(charge <= 0) return;
+
+  // Charged arc — colour shifts from white → yellow → orange → red
+  const hue = charge < 0.5
+    ? `hsl(${60 - charge*40},100%,70%)`   // white → yellow
+    : `hsl(${40 - (charge-0.5)*80},100%,60%)`; // yellow → orange → red
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, -Math.PI/2, -Math.PI/2 + Math.PI*2*charge);
+  ctx.strokeStyle = hue;
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Pulsing glow at high charge
+  if(charge > 0.6) {
+    ctx.beginPath(); ctx.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+Math.PI*2*charge);
+    ctx.strokeStyle = hue.replace(')', ',0.35)').replace('hsl','hsla');
+    ctx.lineWidth = 10; ctx.stroke();
+  }
+
+  // Full charge indicator — flash
+  if(charge >= 0.99) {
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(255,80,0,${0.5+0.5*Math.sin(Date.now()*0.015)})`;
+    ctx.lineWidth=6; ctx.stroke();
+  }
+}
+
+function clearPowerRing() {
+  cancelAnimationFrame(chargeRafId); chargeRafId=null;
+  stopChargeSound();
+  chargeLevel=0;
+  const ring=document.getElementById('power-ring');
+  ring.style.display='none';
+  const ctx=ring.getContext('2d');
+  ctx.clearRect(0,0,ring.width,ring.height);
+  // Restore normal preview
+  updateUI();
+}
+
+function endHold(clientX, clientY, fire) {
+  clearTimeout(holdTimer); holdTimer=null;
+  clearTrajDots(); clearPowerRing();
+  const power = 0; // charge moved to separate button
+  isHolding=false; trajActive=false;
+  document.getElementById('crosshair').style.display='none';
+  document.getElementById('crosshair-ring').style.display='none';
+  if(!fire || proj.active || levelLocked || lobMode) return; // lobMode handles its own firing
+  // Get exact surface hit point at release position
+  mouse2d.x=(clientX/window.innerWidth)*2-1;
+  mouse2d.y=-(clientY/window.innerHeight)*2+1;
+  raycaster.setFromCamera(mouse2d, camera);
+  const _meshes=[], _map={};
+  blocks.filter(b=>b.alive).forEach(b=>{
+    b.mesh.traverse(c=>{ if(c.isMesh&&c.userData.isMainMesh){_meshes.push(c);_map[c.uuid]=b;} });
+  });
+  const _hits = raycaster.intersectObjects(_meshes);
+  if(!_hits.length) return;
+  const target = _map[_hits[0].object.uuid];
+  if(!target) return;
+  launchProjectile(target, clientX, clientY, snappedBlock, 0, _hits[0].point.clone());
+}
+
+// Desktop
+threeCanvas.addEventListener('mousedown',  e=>{ getAC(); startSpaceMusic(); startHold(e.clientX,e.clientY); });
+threeCanvas.addEventListener('mousemove',  e=>{
+  if(holdTimer||isHolding) moveHold(e.clientX,e.clientY);
+  // Note: rotation physics (angVel) are never touched here — they run freely in animate()
+});
+threeCanvas.addEventListener('mouseup',    e=>{ endHold(e.clientX,e.clientY,true); });
+threeCanvas.addEventListener('mouseleave', e=>{ endHold(e.clientX,e.clientY,false); });
+
+// Touch
+threeCanvas.addEventListener('touchstart',  e=>{ e.preventDefault(); getAC(); startSpaceMusic(); const t=e.touches[0]; startHold(t.clientX,t.clientY); },{passive:false});
+threeCanvas.addEventListener('touchmove',   e=>{ e.preventDefault(); const t=e.touches[0]; moveHold(t.clientX,t.clientY); },{passive:false});
+threeCanvas.addEventListener('touchend',    e=>{ e.preventDefault(); const t=e.changedTouches[0]; endHold(t.clientX,t.clientY,true); },{passive:false});
+threeCanvas.addEventListener('touchcancel', e=>{ lobHolding=false; lobCurX=0; lobCurY=0; clearTraj2D(); clearTimeout(holdTimer); clearTrajDots(); clearPowerRing(); isHolding=false; trajActive=false; document.getElementById('crosshair').style.display='none'; document.getElementById('crosshair-ring').style.display='none'; },{passive:false});
+
+updateUI();
+
+// ── Build island ───────────────────────────────────────────────────────────
+// ── Voxel sculpture layouts ───────────────────────────────────────────────
+// Each level is a hand-crafted list of {x,y,z, shape, colorIdx}
+// The CORE gold cube is always placed at 0,0,0
+// Coordinates are in grid units; SP=spacing scales them into world space (SP hoisted earlier)
+
+// ci shortcuts: 0=red 1=blue 2=green 3=orange 4=purple 5=white
+const LEVELS = [
+  { name:'House', blocks:[
+    {x: -2, y: -2, z: -2, s:'cube', ci:1},
+    {x: -2, y: -2, z: -1, s:'cube', ci:3},
+    {x: -2, y: -2, z:  0, s:'cube', ci:2},
+    {x: -2, y: -2, z:  1, s:'cube', ci:2},
+    {x: -2, y: -2, z:  2, s:'cube', ci:5},
+    {x: -2, y: -1, z: -2, s:'cube', ci:1},
+    {x: -2, y: -1, z: -1, s:'cube', ci:0},
+    {x: -2, y: -1, z:  0, s:'cube', ci:4},
+    {x: -2, y: -1, z:  1, s:'cube', ci:2},
+    {x: -2, y: -1, z:  2, s:'cube', ci:2},
+    {x: -2, y:  0, z: -2, s:'cube', ci:4},
+    {x: -2, y:  0, z: -1, s:'cube', ci:4},
+    {x: -2, y:  0, z:  0, s:'cube', ci:4},
+    {x: -2, y:  0, z:  1, s:'cube', ci:1},
+    {x: -2, y:  0, z:  2, s:'cube', ci:0},
+    {x: -2, y:  1, z: -2, s:'cube', ci:5},
+    {x: -2, y:  1, z: -1, s:'cube', ci:5},
+    {x: -2, y:  1, z:  0, s:'cube', ci:4},
+    {x: -2, y:  1, z:  1, s:'cube', ci:4},
+    {x: -2, y:  1, z:  2, s:'cube', ci:0},
+    {x: -1, y: -2, z: -2, s:'cube', ci:1},
+    {x: -1, y: -2, z: -1, s:'cube', ci:1},
+    {x: -1, y: -2, z:  0, s:'cube', ci:4},
+    {x: -1, y: -2, z:  1, s:'cube', ci:3},
+    {x: -1, y: -2, z:  2, s:'cube', ci:5},
+    {x: -1, y: -1, z: -2, s:'cube', ci:0},
+    {x: -1, y: -1, z: -1, s:'cube', ci:2},
+    {x: -1, y: -1, z:  0, s:'cube', ci:1},
+    {x: -1, y: -1, z:  1, s:'cube', ci:0},
+    {x: -1, y: -1, z:  2, s:'cube', ci:1},
+    {x: -1, y:  0, z: -2, s:'cube', ci:4},
+    {x: -1, y:  0, z: -1, s:'cube', ci:5},
+    {x: -1, y:  0, z:  0, s:'cube', ci:4},
+    {x: -1, y:  0, z:  1, s:'cube', ci:3},
+    {x: -1, y:  0, z:  2, s:'cube', ci:0},
+    {x: -1, y:  1, z: -2, s:'cube', ci:5},
+    {x: -1, y:  1, z: -1, s:'cube', ci:5},
+    {x: -1, y:  1, z:  0, s:'cube', ci:1},
+    {x: -1, y:  1, z:  1, s:'cube', ci:0},
+    {x: -1, y:  1, z:  2, s:'cube', ci:0},
+    {x:  0, y: -2, z: -2, s:'cube', ci:0},
+    {x:  0, y: -2, z: -1, s:'cube', ci:1},
+    {x:  0, y: -2, z:  0, s:'cube', ci:0},
+    {x:  0, y: -2, z:  1, s:'cube', ci:3},
+    {x:  0, y: -2, z:  2, s:'cube', ci:4},
+    {x:  0, y: -1, z: -2, s:'cube', ci:0},
+    {x:  0, y: -1, z: -1, s:'cube', ci:4},
+    {x:  0, y: -1, z:  0, s:'cube', ci:3},
+    {x:  0, y: -1, z:  1, s:'cube', ci:2},
+    {x:  0, y: -1, z:  2, s:'cube', ci:1},
+    {x:  0, y:  0, z: -2, s:'cube', ci:2},
+    {x:  0, y:  0, z: -1, s:'cube', ci:1},
+    {x:  0, y:  0, z:  1, s:'cube', ci:5},
+    {x:  0, y:  0, z:  2, s:'cube', ci:2},
+    {x:  0, y:  1, z: -2, s:'cube', ci:5},
+    {x:  0, y:  1, z: -1, s:'cube', ci:2},
+    {x:  0, y:  1, z:  0, s:'cube', ci:2},
+    {x:  0, y:  1, z:  1, s:'cube', ci:2},
+    {x:  0, y:  1, z:  2, s:'cube', ci:1},
+    {x:  1, y: -2, z: -2, s:'cube', ci:0},
+    {x:  1, y: -2, z: -1, s:'cube', ci:3},
+    {x:  1, y: -2, z:  0, s:'cube', ci:3},
+    {x:  1, y: -2, z:  1, s:'cube', ci:3},
+    {x:  1, y: -2, z:  2, s:'cube', ci:2},
+    {x:  1, y: -1, z: -2, s:'cube', ci:3},
+    {x:  1, y: -1, z: -1, s:'cube', ci:0},
+    {x:  1, y: -1, z:  0, s:'cube', ci:5},
+    {x:  1, y: -1, z:  1, s:'cube', ci:4},
+    {x:  1, y: -1, z:  2, s:'cube', ci:2},
+    {x:  1, y:  0, z: -2, s:'cube', ci:5},
+    {x:  1, y:  0, z: -1, s:'cube', ci:3},
+    {x:  1, y:  0, z:  0, s:'cube', ci:2},
+    {x:  1, y:  0, z:  1, s:'cube', ci:1},
+    {x:  1, y:  0, z:  2, s:'cube', ci:4},
+    {x:  1, y:  1, z: -2, s:'cube', ci:3},
+    {x:  1, y:  1, z: -1, s:'cube', ci:2},
+    {x:  1, y:  1, z:  0, s:'cube', ci:5},
+    {x:  1, y:  1, z:  1, s:'cube', ci:4},
+    {x:  1, y:  1, z:  2, s:'cube', ci:4},
+    {x:  2, y: -2, z: -2, s:'cube', ci:0},
+    {x:  2, y: -2, z: -1, s:'cube', ci:5},
+    {x:  2, y: -2, z:  0, s:'cube', ci:0},
+    {x:  2, y: -2, z:  1, s:'cube', ci:3},
+    {x:  2, y: -2, z:  2, s:'cube', ci:2},
+    {x:  2, y: -1, z: -2, s:'cube', ci:3},
+    {x:  2, y: -1, z: -1, s:'cube', ci:2},
+    {x:  2, y: -1, z:  0, s:'cube', ci:0},
+    {x:  2, y: -1, z:  1, s:'cube', ci:0},
+    {x:  2, y: -1, z:  2, s:'cube', ci:2},
+    {x:  2, y:  0, z: -2, s:'cube', ci:5},
+    {x:  2, y:  0, z: -1, s:'cube', ci:5},
+    {x:  2, y:  0, z:  0, s:'cube', ci:0},
+    {x:  2, y:  0, z:  1, s:'cube', ci:3},
+    {x:  2, y:  0, z:  2, s:'cube', ci:4},
+    {x:  2, y:  1, z: -2, s:'cube', ci:3},
+    {x:  2, y:  1, z: -1, s:'cube', ci:3},
+    {x:  2, y:  1, z:  0, s:'cube', ci:0},
+    {x:  2, y:  1, z:  1, s:'cube', ci:0},
+    {x:  2, y:  1, z:  2, s:'cube', ci:4},
+  ]},
+  { name:'Truck', blocks:[
+    {x: -3, y: -3, z:  0, s:'cube', ci:2},
+    {x: -2, y: -3, z:  0, s:'cube', ci:2},
+    {x:  2, y: -3, z:  0, s:'cube', ci:2},
+    {x:  3, y: -3, z:  0, s:'cube', ci:2},
+    {x: -3, y: -2, z:  0, s:'cube', ci:0},
+    {x: -2, y: -2, z:  0, s:'cube', ci:0},
+    {x: -1, y: -2, z:  0, s:'cube', ci:0},
+    {x:  0, y: -2, z:  0, s:'cube', ci:0},
+    {x:  1, y: -2, z:  0, s:'cube', ci:3},
+    {x:  2, y: -2, z:  0, s:'cube', ci:3},
+    {x:  3, y: -2, z:  0, s:'cube', ci:3},
+    {x:  0, y: -1, z:  0, s:'cube', ci:2},
+    {x:  1, y: -1, z:  0, s:'cube', ci:2},
+    {x:  2, y: -1, z:  0, s:'cube', ci:0},
+    {x:  3, y: -1, z:  0, s:'cube', ci:0},
+    {x:  0, y:  0, z:  0, s:'cube', ci:2},
+    {x:  1, y:  0, z:  0, s:'cube', ci:0},
+    {x:  2, y:  0, z:  0, s:'cube', ci:5},
+    {x:  3, y:  0, z:  0, s:'cube', ci:5},
+    {x:  3, y:  1, z:  0, s:'cube', ci:5},
+    {x: -3, y: -1, z:  0, s:'cube', ci:2},
+    {x: -2, y: -1, z:  0, s:'cube', ci:3},
+    {x: -1, y: -1, z:  0, s:'cube', ci:3},
+    {x: -3, y:  0, z:  0, s:'cube', ci:3},
+    {x: -2, y:  0, z:  0, s:'cube', ci:4},
+    {x: -1, y:  0, z:  0, s:'cube', ci:1},
+    {x: -3, y:  1, z:  0, s:'cube', ci:1},
+    {x: -1, y:  1, z:  0, s:'cube', ci:1},
+    {x: -2, y:  1, z:  0, s:'cube', ci:5},
+    {x: -3, y:  0, z: -1, s:'cube', ci:0},
+    {x: -3, y:  2, z:  0, s:'cube', ci:4},
+    {x: -3, y:  3, z:  0, s:'cube', ci:4},
+    {x: -3, y: -2, z:  1, s:'cube', ci:3},
+    {x:  3, y: -2, z:  1, s:'cube', ci:3},
+    {x: -3, y:  0, z:  1, s:'cube', ci:1},
+    {x:  3, y:  0, z:  1, s:'cube', ci:5},
+    {x: -2, y: -3, z:  1, s:'cube', ci:2},
+    {x:  2, y: -3, z:  1, s:'cube', ci:2},
+  ]},
+  { name:'High Rise', blocks:[
+    {x: -3, y: -4, z:  0, s:'cube', ci:0},
+    {x: -2, y: -4, z:  0, s:'cube', ci:0},
+    {x: -1, y: -4, z:  0, s:'cube', ci:0},
+    {x:  0, y: -4, z:  0, s:'cube', ci:0},
+    {x:  1, y: -4, z:  0, s:'cube', ci:3},
+    {x:  2, y: -4, z:  0, s:'cube', ci:3},
+    {x:  3, y: -4, z:  0, s:'cube', ci:3},
+    {x: -2, y: -3, z:  0, s:'cube', ci:3},
+    {x:  2, y: -3, z:  0, s:'cube', ci:3},
+    {x: -1, y: -3, z:  0, s:'cube', ci:2},
+    {x:  0, y: -3, z:  0, s:'cube', ci:2},
+    {x:  1, y: -3, z:  0, s:'cube', ci:2},
+    {x: -2, y: -2, z:  0, s:'cube', ci:2},
+    {x: -1, y: -2, z:  0, s:'cube', ci:3},
+    {x:  0, y: -2, z:  0, s:'cube', ci:3},
+    {x:  1, y: -2, z:  0, s:'cube', ci:0},
+    {x:  2, y: -2, z:  0, s:'cube', ci:0},
+    {x: -2, y: -1, z:  0, s:'cube', ci:0},
+    {x: -1, y: -1, z:  0, s:'cube', ci:0},
+    {x:  0, y: -1, z:  0, s:'cube', ci:3},
+    {x:  1, y: -1, z:  0, s:'cube', ci:4},
+    {x:  2, y: -1, z:  0, s:'cube', ci:0},
+    {x: -2, y:  0, z:  0, s:'cube', ci:0},
+    {x: -1, y:  0, z:  0, s:'cube', ci:0},
+    {x:  0, y:  0, z:  0, s:'cube', ci:2},
+    {x:  1, y:  0, z:  0, s:'cube', ci:5},
+    {x:  2, y:  0, z:  0, s:'cube', ci:0},
+    {x: -2, y:  1, z:  0, s:'cube', ci:2},
+    {x: -1, y:  1, z:  0, s:'cube', ci:2},
+    {x:  0, y:  1, z:  0, s:'cube', ci:5},
+    {x:  1, y:  1, z:  0, s:'cube', ci:2},
+    {x:  2, y:  1, z:  0, s:'cube', ci:3},
+    {x: -2, y:  2, z:  0, s:'cube', ci:3},
+    {x: -1, y:  2, z:  0, s:'cube', ci:5},
+    {x:  0, y:  2, z:  0, s:'cube', ci:1},
+    {x:  1, y:  2, z:  0, s:'cube', ci:5},
+    {x:  2, y:  2, z:  0, s:'cube', ci:1},
+    {x: -1, y:  3, z:  0, s:'cube', ci:0},
+    {x:  0, y:  3, z:  0, s:'cube', ci:4},
+    {x:  1, y:  3, z:  0, s:'cube', ci:4},
+    {x: -1, y:  4, z:  0, s:'cube', ci:4},
+    {x:  1, y:  4, z:  0, s:'cube', ci:4},
+    {x:  0, y:  4, z:  0, s:'cube', ci:0},
+    {x:  0, y:  5, z:  0, s:'cube', ci:0},
+    {x:  0, y:  6, z:  0, s:'cube', ci:0},
+    {x: -2, y: -2, z:  1, s:'cube', ci:1},
+    {x:  2, y: -2, z:  1, s:'cube', ci:1},
+    {x: -2, y:  2, z:  1, s:'cube', ci:1},
+    {x:  2, y:  2, z:  1, s:'cube', ci:1},
+  ]},
+  { name:'Mining Tower', blocks:[
+    {x: -2, y: -3, z: -1, s:'cube', ci:3},
+    {x: -1, y: -3, z: -1, s:'cube', ci:3},
+    {x:  0, y: -3, z: -1, s:'cube', ci:1},
+    {x:  1, y: -3, z: -1, s:'cube', ci:1},
+    {x:  2, y: -3, z: -1, s:'cube', ci:1},
+    {x: -2, y: -3, z:  0, s:'cube', ci:1},
+    {x: -1, y: -3, z:  0, s:'cube', ci:2},
+    {x:  0, y: -3, z:  0, s:'cube', ci:2},
+    {x:  1, y: -3, z:  0, s:'cube', ci:1},
+    {x:  2, y: -3, z:  0, s:'cube', ci:3},
+    {x: -2, y: -2, z:  0, s:'cube', ci:1},
+    {x:  2, y: -2, z:  0, s:'cube', ci:2},
+    {x: -2, y: -1, z:  0, s:'cube', ci:2},
+    {x:  2, y: -1, z:  0, s:'cube', ci:1},
+    {x: -1, y: -2, z:  0, s:'cube', ci:2},
+    {x:  0, y: -2, z:  0, s:'cube', ci:0},
+    {x:  1, y: -2, z:  0, s:'cube', ci:0},
+    {x: -1, y: -1, z:  0, s:'cube', ci:0},
+    {x:  1, y: -1, z:  0, s:'cube', ci:0},
+    {x: -1, y:  0, z:  0, s:'cube', ci:3},
+    {x:  0, y:  0, z:  0, s:'cube', ci:4},
+    {x:  1, y:  0, z:  0, s:'cube', ci:4},
+    {x:  0, y:  1, z:  0, s:'cube', ci:4},
+    {x:  0, y:  2, z:  0, s:'cube', ci:4},
+    {x:  3, y: -3, z:  0, s:'cube', ci:3},
+    {x:  3, y: -2, z:  0, s:'cube', ci:3},
+    {x:  3, y: -1, z:  0, s:'cube', ci:3},
+    {x: -3, y: -3, z:  0, s:'cube', ci:3},
+    {x: -3, y: -2, z:  0, s:'cube', ci:3},
+    {x:  0, y: -1, z:  0, s:'cube', ci:1},
+    {x:  2, y:  0, z:  0, s:'cube', ci:1},
+    {x: -2, y:  0, z:  0, s:'cube', ci:1},
+    {x:  3, y:  0, z:  0, s:'cube', ci:2},
+    {x:  4, y:  0, z:  0, s:'cube', ci:2},
+    {x:  0, y:  3, z:  0, s:'cube', ci:2},
+    {x:  1, y:  3, z:  0, s:'cube', ci:2},
+  ]},
+  { name:'Launch Platform', blocks:[
+    {x: -3, y: -4, z:  0, s:'cube', ci:2},
+    {x: -2, y: -4, z:  0, s:'cube', ci:3},
+    {x: -1, y: -4, z:  0, s:'cube', ci:3},
+    {x:  0, y: -4, z:  0, s:'cube', ci:3},
+    {x:  1, y: -4, z:  0, s:'cube', ci:3},
+    {x:  2, y: -4, z:  0, s:'cube', ci:0},
+    {x:  3, y: -4, z:  0, s:'cube', ci:0},
+    {x: -2, y: -3, z:  0, s:'cube', ci:0},
+    {x:  2, y: -3, z:  0, s:'cube', ci:0},
+    {x: -2, y: -2, z:  0, s:'cube', ci:0},
+    {x:  2, y: -2, z:  0, s:'cube', ci:0},
+    {x:  0, y: -3, z:  0, s:'cube', ci:4},
+    {x:  0, y: -2, z:  0, s:'cube', ci:4},
+    {x:  0, y: -1, z:  0, s:'cube', ci:4},
+    {x:  0, y:  0, z:  0, s:'cube', ci:4},
+    {x:  0, y:  1, z:  0, s:'cube', ci:5},
+    {x:  0, y:  2, z:  0, s:'cube', ci:5},
+    {x:  0, y:  3, z:  0, s:'cube', ci:5},
+    {x:  0, y:  4, z:  0, s:'cube', ci:5},
+    {x: -1, y: -3, z:  0, s:'cube', ci:1},
+    {x:  1, y: -3, z:  0, s:'cube', ci:1},
+    {x: -1, y: -2, z:  0, s:'cube', ci:1},
+    {x:  1, y: -2, z:  0, s:'cube', ci:1},
+    {x: -1, y:  0, z:  0, s:'cube', ci:3},
+    {x:  1, y:  0, z:  0, s:'cube', ci:3},
+    {x: -1, y:  1, z:  0, s:'cube', ci:3},
+    {x:  1, y:  1, z:  0, s:'cube', ci:3},
+    {x: -2, y:  0, z:  0, s:'cube', ci:1},
+    {x:  2, y:  0, z:  0, s:'cube', ci:1},
+    {x: -3, y:  1, z:  0, s:'cube', ci:1},
+    {x:  3, y:  1, z:  0, s:'cube', ci:1},
+    {x: -1, y: -4, z:  0, s:'cube', ci:2},
+    {x:  0, y: -5, z:  0, s:'cube', ci:2},
+    {x:  1, y: -4, z:  0, s:'cube', ci:2},
+  ]},
+];
+
+const CONTACT_R = { cube: 0.44, sphere: 0.44, pyramid: 0.44 };
+function contactDist(sA, sB) { return CONTACT_R[sA] + CONTACT_R[sB]; }
+
+function buildIsland() {
+  [...pivot.children].forEach(c=>pivot.remove(c));
+  blocks=[]; coreExposed=false; coreLight.intensity=0;
+  document.getElementById('core-msg').style.opacity='0';
+  document.getElementById('core-msg').style.transform='translate(-50%,-50%) scale(0)';
+  // Reset shot counter for this level
+  shotsLeft = getShotBudget(currentLevel);
+  updateShotsUI();
+
+  // Pick level layout (cycle through, then repeat last)
+  const lvIdx = Math.min(currentLevel-1, LEVELS.length-1);
+  const layout = LEVELS[lvIdx];
+
+  // Update hint with level name
+  document.getElementById('hint').textContent = 'Tap a block to shoot';
+
+  // ── Gold core with gravity field ──────────────────────────────────────────
+  const coreMat = new THREE.MeshLambertMaterial({color:0xffd700, emissive:0x664400});
+  coreMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.52,1), coreMat);
+
+  // Outer pulsing shell — communicates "gravity well"
+  const shellGeo = new THREE.SphereGeometry(1.1, 16, 16);
+  const shellMat = new THREE.MeshBasicMaterial({
+    color:0xffd700, transparent:true, opacity:0.06, side:THREE.BackSide
+  });
+  const coreShell = new THREE.Mesh(shellGeo, shellMat);
+  coreMesh.add(coreShell);
+
+  // Three orbital rings at different tilts
+  [[0,0],[Math.PI/3,0],[Math.PI/6,Math.PI/2]].forEach(([rx,rz])=>{
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.82, 0.022, 6, 40),
+      new THREE.MeshBasicMaterial({color:0xffd700, transparent:true, opacity:0.55})
+    );
+    ring.rotation.x = rx; ring.rotation.z = rz;
+    coreMesh.add(ring);
+  });
+
+  // Point light so core illuminates nearby blocks
+  const corePointLight = new THREE.PointLight(0xffd700, 0.8, 6);
+  coreMesh.add(corePointLight);
+
+  pivot.add(coreMesh);
+
+  // ── Gravity beam lines from core to each block ─────────────────────────
+  // Built after blocks array is populated — stored on pivot as coreBeams group
+
+
+  // Place each voxel from layout
+  layout.blocks.forEach(def => {
+    if(def.x===0 && def.y===0 && def.z===0) return; // skip — core is here
+    const wx=def.x*SP, wy=def.y*SP, wz=def.z*SP;
+    const ci=def.ci;
+    const shape=def.s;
+    const m=makeBlockMesh(shape,COLORS[ci]);
+    m.position.set(wx,wy,wz);
+    pivot.add(m);
+    blocks.push({mesh:m,colorIdx:ci,color:COLORS[ci],colorHex:COLOR_HEX[ci],shape,wx,wy,wz,alive:true});
+  });
+
+    // Beams removed for performance
+
+  // Reseed queue from live blocks
+  currentBlock=rndBlock(); nextBlock=rndBlock(); updateUI(); // sync snappedBlock
+  // Drop any blocks not connected to core from the start
+  setTimeout(detachFloaters, 200);
+}
+buildIsland();
+currentBlock=rndBlock(); nextBlock=rndBlock(); updateUI();
+  goalStars=0; document.getElementById('star-counter-val').textContent='0';
+  setTimeout(()=>pickNewGoalForColor(currentBlock.colorIdx), 300);
+
+// ── Physics rotation (impact-driven only) ─────────────────────────────────
+const angVel = new THREE.Vector3(0, 0.4, 0); // gentle idle spin to start
+const ANGULAR_DAMPING = 0.975;  // normal spin persistence
+const CHARGED_DAMPING = 0.9995; // nearly zero damping after charged hit
+let MAX_ANG_SPEED   = 6.0;
+let TORQUE_MATCH    = 3.0;  // impact strength on color match
+let TORQUE_MISS     = 0.5;  // impact strength on mismatch
+let chargedHitTimer = 0; // seconds remaining of low-damping mode
+
+function applyImpactTorque(hitWorldPos, incomingDir, impactStrength) {
+  // r = vector from pivot centre to hit point
+  const r = hitWorldPos.clone();
+  // torque axis = r x incoming direction
+  const torqueAxis = new THREE.Vector3().crossVectors(r, incomingDir).normalize();
+  // leverage: hit further from centre = more spin; dead-centre hit spins less
+  const leverage = Math.min(r.length() / 2.0, 1.8);
+  const magnitude = (0.15 + leverage * 0.5) * impactStrength;
+  angVel.addScaledVector(torqueAxis, magnitude);
+  if(angVel.length() > MAX_ANG_SPEED) angVel.setLength(MAX_ANG_SPEED);
+}
+
+// Canvas input handled by hold/release system below
+
+// ── Shoot ──────────────────────────────────────────────────────────────────
+const raycaster=new THREE.Raycaster();
+const mouse2d=new THREE.Vector2();
+
+function tryShoot(px, py) {
+  if(proj.active || levelLocked) return;
+  mouse2d.x=(px/window.innerWidth)*2-1;
+  mouse2d.y=-(py/window.innerHeight)*2+1;
+  raycaster.setFromCamera(mouse2d, camera);
+  const aliveMeshes=[], meshToBlock={};
+  blocks.filter(b=>b.alive).forEach(b=>{
+    b.mesh.traverse(child=>{
+      if(child.isMesh && child.userData.isMainMesh){ aliveMeshes.push(child); meshToBlock[child.uuid]=b; }
+    });
+  });
+  const hits = raycaster.intersectObjects(aliveMeshes);
+  if(!hits.length) return;
+  const target = meshToBlock[hits[0].object.uuid];
+  if(!target) return;
+  // Use the exact surface hit point in world space as the aim target
+  const exactHitPoint = hits[0].point.clone();
+  launchProjectile(target, px, py, snappedBlock, 0, exactHitPoint);
+}
+
+// Collision radius for each shape (in world units)
+const PROJ_R = { cube: 0.21, sphere: 0.21, pyramid: 0.21 };
+
+function launchProjectile(targetBlock, tapX, tapY, snap, power=0, exactHitPoint=null, useLob=false) {
+  // Use the snapped block — guaranteed to match what was showing in the button
+  const shotCI=snap.colorIdx, shotSh=snap.shape;
+  const shotColor=snap.color, shotHex=snap.colorHex;
+
+  // Aim at the exact surface point clicked, or fall back to block centre
+  const worldPos = exactHitPoint ? exactHitPoint.clone() : new THREE.Vector3();
+  if(!exactHitPoint) targetBlock.mesh.getWorldPosition(worldPos);
+
+  // ── Compute launch position from the tap/click screen position ─────────────
+  // Unproject the tap point at the same world-Z as the cluster front face
+  const tapNDC = new THREE.Vector3(
+    (tapX / window.innerWidth)  * 2 - 1,
+   -(tapY / window.innerHeight) * 2 + 1,
+    0.5
+  );
+  tapNDC.unproject(camera);
+  const camPos = camera.position.clone();
+  const tapRayDir = tapNDC.sub(camPos).normalize();
+  const targetZ = 8;
+  const tParam = (targetZ - camPos.z) / tapRayDir.z;
+  const launchPos = camPos.clone().addScaledVector(tapRayDir, tParam);
+
+  // Straight direction toward target
+  const toTarget = worldPos.clone().sub(launchPos);
+  const dist = toTarget.length();
+  const dir = toTarget.normalize();
+
+  // Speed: cover the distance in ~28 frames
+  // Power affects speed (1x to 2x) and impact strength
+  const powerScale = 1.0 + power * 1.5;
+  const SPEED = (dist / 21.5) * powerScale;
+  proj.power = power;
+  proj.useLob = useLob;
+  // Determine actual launch position
+  const actualLaunchPos = useLob ? getLobLaunchPos() : launchPos;
+
+  if(useLob) {
+    proj.lobStart = actualLaunchPos.clone();
+    proj.lobEnd = worldPos.clone();
+    proj.lobT = 0;
+    proj.lobArcHeight = 3.92;
+    const lobDist = actualLaunchPos.distanceTo(worldPos);
+    proj.lobDuration = Math.max(0.8, lobDist / 10);
+    proj.lobElapsed = 0;
+  } else {
+    proj.vx=dir.x*SPEED; proj.vy=dir.y*SPEED; proj.vz=dir.z*SPEED;
+  }
+
+  const mesh=makeBlockMesh(shotSh,shotColor);
+  mesh.scale.setScalar(0.85);
+  mesh.position.copy(actualLaunchPos); // position before adding to scene
+  scene.add(mesh);
+
+  proj.active=true;
+  proj.mesh=mesh;
+  proj.trail=[];
+  proj.colorHex=shotHex;
+  proj.shotCI=shotCI;
+  proj.shotSh=shotSh;
+  proj.start=actualLaunchPos.clone();
+  proj.maxDist=worldPos.distanceTo(actualLaunchPos)*3.5;
+  proj.travelled=0;
+  proj.bounceCount=0;
+  proj.power=power;
+
+  // Show charged shot message
+  if(power > 0.3) {
+    const pct = Math.round(power*100);
+    showChargeMsg(`⚡ CHARGED SHOT ${pct}%`, '#ff8800');
+  }
+  playShoot();
+  // Decrement shots
+  shotsLeft = Math.max(0, shotsLeft-1);
+  updateShotsUI();
+  const sc = document.getElementById('shots-count');
+  sc.style.transition='transform 0.1s';
+  sc.style.transform='scale(1.4)';
+  setTimeout(()=>sc.style.transform='scale(1)', 150);
+  // Check out of shots after this shot has time to land
+  if(shotsLeft === 0) setTimeout(checkOutOfShots, 1500);
+  // Advance queue: next becomes current, generate a new next
+  currentBlock=nextBlock; nextBlock=rndBlockExcluding(currentBlock); updateUI();
+}
+
+function bounceMesh(mesh) {
+  const oy=mesh.position.y; let bt=0;
+  const id=setInterval(()=>{ bt+=0.18; mesh.position.y=oy+Math.sin(bt)*0.22*Math.max(0,1-bt/3.2); if(bt>3.2){mesh.position.y=oy;clearInterval(id);} },16);
+}
+
+function floodMatch(start,ci,sh) {
+  const matched=[],visited=new Set([start]),queue=[start];
+  const ADJ = SP * 1.8;
+  while(queue.length && matched.length < 5) {
+    const cur=queue.shift(); matched.push(cur);
+    for(const b of blocks) {
+      if(!b.alive||visited.has(b)) continue;
+      if(b.colorIdx!==ci||b.shape!==sh) continue;
+      const d=Math.hypot(b.wx-cur.wx, b.wy-cur.wy, b.wz-cur.wz);
+      if(d<=ADJ){ visited.add(b); queue.push(b); }
+    }
+  }
+  return matched;
+}
+
+function refreshQueue() {
+  const types = aliveTypes();
+  if(types.length === 0) return; // level clearing, don't interfere
+  let changed = false;
+  // Never replace currentBlock while a projectile is in flight —
+  // that would cause the visual to mismatch the shot already fired
+  if(!proj.active) {
+    const curValid = types.some(t=>t.colorIdx===currentBlock.colorIdx && t.shape===currentBlock.shape);
+    if(!curValid){ currentBlock=rndBlock(); changed=true; updateUI(); }
+  }
+  // Always safe to refresh next block
+  const nxtValid = types.some(t=>t.colorIdx===nextBlock.colorIdx && t.shape===nextBlock.shape);
+  if(!nxtValid){ nextBlock=rndBlockExcluding(currentBlock); changed=true; }
+  if(changed) updateUI();
+}
+
+// ── Connectivity BFS — O(n log n) using early-exit ──────────────────────────
+function getConnectedToCore() {
+  const alive = blocks.filter(b=>b.alive);
+  const connected = new Set();
+  const queue = [];
+  // Seed: blocks touching the core (at origin)
+  for(const b of alive) {
+    const d=Math.hypot(b.wx,b.wy,b.wz);
+    if(d <= SP*2.0){ connected.add(b); queue.push(b); }
+  }
+  // BFS — only iterate alive blocks, exit early when all found
+  let head=0;
+  while(head<queue.length) {
+    const cur=queue[head++];
+    for(const b of alive) {
+      if(connected.has(b)) continue;
+      const d=Math.hypot(b.wx-cur.wx,b.wy-cur.wy,b.wz-cur.wz);
+      if(d<=SP*2.0){
+        connected.add(b); queue.push(b);
+        if(connected.size===alive.length) return connected; // all connected, stop early
+      }
+    }
+  }
+  return connected;
+}
+
+// ── Detach floating blocks — they fall with gravity ───────────────────────
+
+function detachFloaters() {
+  const connected = getConnectedToCore();
+  const floaters = blocks.filter(b => b.alive && !connected.has(b));
+  if(!floaters.length) return;
+  floaters.forEach((b, i) => {
+    b.alive = false;
+    const len = Math.hypot(b.wx,b.wy,b.wz)||1;
+    const nx=b.wx/len, ny=b.wy/len, nz=b.wz/len;
+    fallingBlocks.push({
+      mesh: b.mesh,
+      vx: nx*0.03 + (Math.random()-0.5)*0.04,
+      vy: ny*0.02 + 0.01,
+      vz: nz*0.03 + (Math.random()-0.5)*0.04,
+      rx: (Math.random()-0.5)*0.06,
+      ry: (Math.random()-0.5)*0.06,
+      rz: (Math.random()-0.5)*0.04,
+      life: 1.0,
+      delay: i * 40
+    });
+  });
+  // Chain: removing these may expose more floaters — check again shortly
+  if(floaters.length > 0) setTimeout(detachFloaters, floaters.length*40 + 100);
+  refreshQueue();
+}
+
+function doExplode(matched) {
+  checkGoalComplete(matched);
+  matched.forEach((b,i)=>{
+    setTimeout(()=>{
+      if(!b.alive) return;
+      b.alive=false;
+      // Convert block from pivot-local to world position so it falls independently of rotation
+      const worldPos = new THREE.Vector3();
+      b.mesh.getWorldPosition(worldPos);
+      const worldQuat = new THREE.Quaternion();
+      b.mesh.getWorldQuaternion(worldQuat);
+      pivot.remove(b.mesh);
+      // Re-add to scene at world pos
+      b.mesh.position.copy(worldPos);
+      b.mesh.quaternion.copy(worldQuat);
+      scene.add(b.mesh);
+      // Small explosion poof for feedback (but the block itself falls)
+      spawnParticles3d(worldPos.clone(), b.colorHex);
+      playPop(i);
+      // Push into fallingBlocks with initial outward velocity + downward pull
+      const outDir = worldPos.clone().normalize();
+      fallingBlocks.push({
+        mesh: b.mesh,
+        colorIdx: b.colorIdx,
+        colorHex: b.colorHex,
+        // velocity in WORLD space — slight kick outward and upward before gravity pulls down
+        vx: outDir.x * 0.04 + (Math.random()-0.5)*0.02,
+        vy: 0.05 + Math.random()*0.02,
+        vz: outDir.z * 0.04 + (Math.random()-0.5)*0.02,
+        rx: (Math.random()-0.5)*0.08,
+        ry: (Math.random()-0.5)*0.08,
+        rz: (Math.random()-0.5)*0.08,
+        worldSpace: true,  // flag for the update loop
+        settling: false
+      });
+    },i*70);
+  });
+  shakeAmt=Math.min(matched.length*0.13,0.8);
+  score+=matched.length*matched.length*10;
+  document.getElementById('score').textContent='Score: '+score;
+  // Match celebration removed — blocks now fall into the funnel.
+  // After all matched blocks removed, check for floaters
+  setTimeout(()=>detachFloaters(), matched.length*70+100);
+  setTimeout(()=>checkCoreExposure(), matched.length*70+120);
+  // Refresh queue immediately (blocks already marked alive=false above)
+  refreshQueue();
+  setTimeout(()=>refreshQueue(), matched.length*70+150);
+  setTimeout(()=>{ if(blocks.some(b=>b.alive)) pickNewGoalForColor(currentBlock.colorIdx); }, matched.length*70+200);
+  // No mid-level rebuild — level ends only when core is fully exposed
+}
+
+function checkOutOfShots() {
+  // If level already won, ignore
+  if(coreExposed || levelLocked) return;
+  // If shots still remain (e.g. player had more from a previous path), ignore
+  if(shotsLeft > 0) return;
+  // Also ignore if projectile still in flight
+  if(proj.active) { setTimeout(checkOutOfShots, 400); return; }
+  // Out of shots — show overlay
+  levelLocked = true;
+  playOutOfShots();
+  document.getElementById('out-sub').textContent = 'Use a life to try again';
+  document.getElementById('out-overlay').classList.add('show');
+}
+
+function playOutOfShots() {
+  try {
+    const ac=getAC();
+    // Descending sad tone
+    [[330,0],[277,0.15],[220,0.3],[185,0.5]].forEach(([f,d])=>{
+      const o=ac.createOscillator(),g=ac.createGain();
+      o.connect(g);g.connect(ac.destination);o.type='triangle';
+      o.frequency.setValueAtTime(f,ac.currentTime+d);
+      g.gain.setValueAtTime(0.15,ac.currentTime+d);
+      g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+d+0.35);
+      o.start(ac.currentTime+d);o.stop(ac.currentTime+d+0.38);
+    });
+  } catch(e){}
+}
+
+// Full restart: wipes funnel blocks, belt blocks, carts, and cluster state, then rebuilds level 1.
+window.restartLevel1 = function() {
+  // Cancel any in-flight projectile
+  if(typeof proj !== 'undefined') {
+    proj.active = false;
+    if(proj.mesh && proj.mesh.parent) proj.mesh.parent.remove(proj.mesh);
+  }
+  // Clear any blocks currently falling (pivot-local legacy + world-space)
+  if(typeof fallingBlocks !== 'undefined') {
+    fallingBlocks.forEach(f => { if(f.mesh && f.mesh.parent) f.mesh.parent.remove(f.mesh); });
+    fallingBlocks.length = 0;
+  }
+  // Clear blocks in the funnel
+  if(typeof funnelBlocks !== 'undefined') {
+    funnelBlocks.forEach(f => { if(f.mesh && f.mesh.parent) f.mesh.parent.remove(f.mesh); });
+    funnelBlocks.length = 0;
+  }
+  // Clear blocks currently riding the belt
+  if(typeof beltBlocks !== 'undefined') {
+    beltBlocks.forEach(b => { if(b.mesh && b.mesh.parent) b.mesh.parent.remove(b.mesh); });
+    beltBlocks.length = 0;
+  }
+  // Clear blocks mid-drop into a cart
+  if(typeof _cartDropping !== 'undefined') {
+    _cartDropping.forEach(d => { if(d.mesh && d.mesh.parent) d.mesh.parent.remove(d.mesh); });
+    _cartDropping.length = 0;
+  }
+  // Empty and reset all carts (keep the 4 cart slots, just wipe their contents)
+  if(typeof carts !== 'undefined' && carts.length) {
+    carts.forEach((cart, idx) => {
+      // Remove any child blocks parented to the cart group
+      while(cart.group.children.length) {
+        const child = cart.group.children[0];
+        cart.group.remove(child);
+      }
+      // Re-add the cart's own visual walls by recreating it. Easiest: replaceCart.
+      if(typeof replaceCart === 'function') replaceCart(cart, idx);
+    });
+  }
+  // Reset cart counter
+  if(typeof cartCount !== 'undefined') {
+    cartCount = 0;
+    const ccVal = document.getElementById('cart-counter-val');
+    if(ccVal) ccVal.textContent = '0';
+  }
+  // Restore shots for level 1
+  currentLevel = 1;
+  shotsLeft = getShotBudget(currentLevel);
+  if(typeof updateShotsUI === 'function') updateShotsUI();
+  // Unlock and reset flags
+  levelLocked = false;
+  coreExposed = false;
+  // Rebuild the cluster
+  buildIsland();
+  // Hide any overlays
+  const ov = document.getElementById('out-overlay'); if(ov) ov.classList.remove('show');
+  const lc = document.getElementById('lv-overlay');  if(lc) lc.classList.remove('show');
+};
+
+function retryLevel() {
+  // Use a life (unlimited for now — just reset)
+  document.getElementById('out-overlay').classList.remove('show');
+  levelLocked = false;
+  // Restore shots and rebuild same level
+  shotsLeft = getShotBudget(currentLevel);
+  updateShotsUI();
+  // Clear falling blocks
+  fallingBlocks.forEach(f=>pivot.remove(f.mesh)); fallingBlocks=[];
+  buildIsland();
+}
+
+// Wire up retry button
+document.getElementById('out-btn').addEventListener('click', ()=>{ getAC(); retryLevel(); });
+document.getElementById('out-btn').addEventListener('touchend', e=>{ e.preventDefault(); getAC(); retryLevel(); });
+
+function checkCoreExposure() {
+  if(!coreExposed && blocks.filter(b=>b.alive).length===0) {
+    coreExposed=true;
+    levelLocked=true; // block shooting during celebration
+    playCoreReveal();
+    coreLight.intensity=3;
+    // Brief "core exposed" flash
+    const msg=document.getElementById('core-msg');
+    msg.style.opacity='1'; msg.style.transform='translate(-50%,-50%) scale(1)';
+    setTimeout(()=>{ msg.style.opacity='0'; msg.style.transform='translate(-50%,-50%) scale(0)'; }, 1400);
+    // Then show level complete overlay
+    setTimeout(showLevelComplete, 1800);
+  }
+}
+
+function showLevelComplete() {
+  tokens++;
+  // Update token display
+  document.getElementById('tokens').textContent='🏅 ×'+tokens;
+  // Populate overlay text
+  document.getElementById('lv-title').textContent='LEVEL '+currentLevel+' COMPLETE!';
+  document.getElementById('lv-sub').textContent='Core destroyed! +1 token earned';
+  // Show overlay
+  document.getElementById('level-overlay').classList.add('show');
+  // Celebration: burst of particles from core
+  for(let i=0;i<6;i++) {
+    setTimeout(()=>{
+      const p=new THREE.Vector3((Math.random()-0.5)*0.5,(Math.random()-0.5)*0.5,(Math.random()-0.5)*0.5);
+      spawnParticles3d(p,'#ffd700');
+    },i*180);
+  }
+  playCelebration();
+}
+
+function playCelebration() {
+  try {
+    const ac=getAC();
+    // Triumphant fanfare — ascending chord + sparkle
+    [[523,0],[659,0.08],[784,0.16],[1047,0.26],[1319,0.36],[1047,0.50],[1319,0.60],[1568,0.72]].forEach(([f,d])=>{
+      const o=ac.createOscillator(),g=ac.createGain();
+      o.connect(g);g.connect(ac.destination);o.type='triangle';
+      o.frequency.setValueAtTime(f,ac.currentTime+d);
+      g.gain.setValueAtTime(0.18,ac.currentTime+d);
+      g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+d+0.35);
+      o.start(ac.currentTime+d);o.stop(ac.currentTime+d+0.38);
+    });
+    // Harmony layer
+    [[330,0.08],[392,0.16],[523,0.26]].forEach(([f,d])=>{
+      const o=ac.createOscillator(),g=ac.createGain();
+      o.connect(g);g.connect(ac.destination);o.type='sine';
+      o.frequency.setValueAtTime(f,ac.currentTime+d);
+      g.gain.setValueAtTime(0.09,ac.currentTime+d);
+      g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+d+0.4);
+      o.start(ac.currentTime+d);o.stop(ac.currentTime+d+0.42);
+    });
+  } catch(e){}
+}
+
+function startNextLevel() {
+  currentLevel++;
+  document.getElementById('level-badge').textContent='Level '+currentLevel;
+  document.getElementById('level-overlay').classList.remove('show');
+  levelLocked=false;
+  fallingBlocks.forEach(f=>pivot.remove(f.mesh));
+  fallingBlocks=[];
+  buildIsland(); // buildIsland resets shotsLeft via getShotBudget
+}
+
+// Wire up the Next Level button
+document.getElementById('lv-btn').addEventListener('click', ()=>{ getAC(); startNextLevel(); });
+document.getElementById('lv-btn').addEventListener('touchend', e=>{ e.preventDefault(); getAC(); startNextLevel(); });
+
+// ── Particles ──────────────────────────────────────────────────────────────
+// Shared ring geo/mat for shockwaves — reused, not reallocated
+const _ringGeo = new THREE.RingGeometry(0.05,0.32,20);
+const _ringMat = new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide,transparent:true,opacity:0.9});
+// Single shared point light — moved to each explosion position, not cloned
+const _sharedLight = new THREE.PointLight(0xffffff,0,6);
+scene.add(_sharedLight);
+let _lightLife=0, _lightColor=new THREE.Color();
+
+function spawnParticles3d(pos,colorHex) {
+  const color=new THREE.Color(colorHex);
+
+  // ── Pooled orbs (8 instead of 22) ───────────────────────────────────────
+  for(let i=0;i<8;i++){
+    const p=acquireParticle(); if(!p) continue;
+    // convert pivot-local pos to scene world pos for pool particles (in scene not pivot)
+    const worldPos=pos.clone(); pivot.localToWorld(worldPos);
+    p.mesh.position.copy(worldPos);
+    p.mesh.material.color.set(i%3===0?0xffffff:color);
+    p.mesh.material.opacity=1;
+    p.mesh.scale.setScalar(0.7+Math.random()*0.6);
+    const spd=0.06+Math.random()*0.18, a=Math.random()*Math.PI*2, el=Math.random()*Math.PI-Math.PI/2;
+    particles3d.push({
+      p, // pool handle
+      vx:Math.cos(el)*Math.cos(a)*spd, vy:Math.sin(el)*spd+0.04, vz:Math.cos(el)*Math.sin(a)*spd,
+      life:1, decay:0.03+Math.random()*0.02, type:'pooled'
+    });
+  }
+
+  // ── One shockwave ring per explosion (pivot-local) ───────────────────────
+  const ring=new THREE.Mesh(_ringGeo,
+    new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide,transparent:true,opacity:0.85}));
+  ring.position.copy(pos); ring.lookAt(camera.position);
+  pivot.add(ring);
+  particles3d.push({mesh:ring,vx:0,vy:0,vz:0,life:1,decay:0.05,type:'ring',scaleRate:4,owned:true});
+
+  // ── Move shared light to this explosion ───────────────────────────────────
+  const wpos=pos.clone(); pivot.localToWorld(wpos);
+  _sharedLight.position.copy(wpos);
+  _sharedLight.color.set(color);
+  _sharedLight.intensity=3.5;
+  _lightLife=1.0;
+}
+
+
+
+// ── Render loop ────────────────────────────────────────────────────────────
+const clock=new THREE.Clock();
+let coreGlowT=0;
+
+
+// ── Goal system ───────────────────────────────────────────────────────────
+
+function pickNewGoalForColor(colorIdx) {
+  if(!blocks.some(b=>b.alive)) return;
+
+  _pickGoal(colorIdx);
+}
+
+function pickNewGoal() {
+  if(!blocks.some(b=>b.alive)) return;
+  _pickGoal(currentBlock ? currentBlock.colorIdx : -1);
+}
+
+function _pickGoal(colorIdx) {
+  if(!blocks.some(b=>b.alive)) { currentGoal=null; clearGoalCanvas(); return; }
+  if(colorIdx === undefined || colorIdx === null || colorIdx < 0) {
+    colorIdx = currentBlock ? currentBlock.colorIdx : 0;
+  }
+  // Use integer grid coordinates for exact face-adjacency (avoids float precision issues)
+  const toGrid = b => [Math.round(b.wx/SP), Math.round(b.wy/SP), Math.round(b.wz/SP)];
+  const gridKey = (x,y,z) => x+','+y+','+z;
+  const blockMap = new Map();
+  for(const b of blocks) {
+    if(!b.alive) continue;
+    const [gx,gy,gz] = toGrid(b);
+    blockMap.set(gridKey(gx,gy,gz), b);
+  }
+  const DIRS = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+
+  const visited = new Set();
+  const groups = [];
+
+  for(const b of blocks) {
+    if(!b.alive || visited.has(b)) continue;
+    const group = []; const q = [b]; visited.add(b);
+    while(q.length && group.length < 5) {
+      const cur = q.shift(); group.push(cur);
+      const [cx,cy,cz] = toGrid(cur);
+      for(const [dx,dy,dz] of DIRS) {
+        const nb = blockMap.get(gridKey(cx+dx,cy+dy,cz+dz));
+        if(!nb || visited.has(nb) || nb.colorIdx !== cur.colorIdx) continue;
+        visited.add(nb); q.push(nb);
+      }
+    }
+    if(group.length >= 3 && group.length <= 5) groups.push(group);
+  }
+
+  // Helper: check if a group has at least 3 blocks aligned on one axis
+  // Allowed match shapes (and ONLY these):
+  // - 3/4/5 blocks in a straight line (on any axis)
+  // - L-shape (3 in a line + 1 at one end, perpendicular)
+  // - 2x2 square on any face
+  function isLinePattern(g) {
+    // Check all blocks lie on a single line (same 2 axes)
+    if(g.length < 3) return false;
+    const xs=g.map(b=>Math.round(b.wx/SP)), ys=g.map(b=>Math.round(b.wy/SP)), zs=g.map(b=>Math.round(b.wz/SP));
+    const ux=new Set(xs).size, uy=new Set(ys).size, uz=new Set(zs).size;
+    // Pure line: exactly 1 axis varies, other 2 are constant
+    return (ux===g.length && uy===1 && uz===1) ||  // line along X
+           (uy===g.length && ux===1 && uz===1) ||  // line along Y
+           (uz===g.length && ux===1 && uy===1);    // line along Z
+  }
+
+  function isSquare(g) {
+    // 2x2 square on any face (exactly 4 blocks)
+    if(g.length !== 4) return false;
+    const xs=g.map(b=>Math.round(b.wx/SP)), ys=g.map(b=>Math.round(b.wy/SP)), zs=g.map(b=>Math.round(b.wz/SP));
+    const ux=new Set(xs).size, uy=new Set(ys).size, uz=new Set(zs).size;
+    return (ux===2 && uy===2 && uz===1) ||
+           (ux===2 && uz===2 && uy===1) ||
+           (uy===2 && uz===2 && ux===1);
+  }
+
+  function isLShape(g) {
+    // L-shape: 3 blocks in a line + 1 block perpendicular at one END of the line
+    // All 4 blocks must lie on a single face (coplanar, one axis constant)
+    if(g.length !== 4) return false;
+    const xs=g.map(b=>Math.round(b.wx/SP)), ys=g.map(b=>Math.round(b.wy/SP)), zs=g.map(b=>Math.round(b.wz/SP));
+    const ux=new Set(xs).size, uy=new Set(ys).size, uz=new Set(zs).size;
+    // Must be coplanar: exactly one axis has a single value
+    if(!(ux===1 || uy===1 || uz===1)) return false;
+    // In the 2D plane, bounding box must be 3x2 (3-line + 1 offset)
+    // so on the 2 varying axes, one has 3 unique values and the other has 2
+    const dims = [ux, uy, uz].filter(d => d > 1);
+    if(dims.length !== 2) return false;
+    const has3 = dims.includes(3), has2 = dims.includes(2);
+    if(!(has3 && has2)) return false;
+    // Try each block as the elbow: the 3 others must form a line of 3
+    for(let j=0; j<4; j++) {
+      const rest = g.filter((_,i)=>i!==j);
+      if(isLinePattern(rest)) {
+        // The removed block must be perpendicular to the line at one of its ends
+        const rxs=rest.map(b=>Math.round(b.wx/SP)), rys=rest.map(b=>Math.round(b.wy/SP)), rzs=rest.map(b=>Math.round(b.wz/SP));
+        const jx=Math.round(g[j].wx/SP), jy=Math.round(g[j].wy/SP), jz=Math.round(g[j].wz/SP);
+        // Check the elbow is adjacent (distance 1) to an endpoint of the line
+        const rux=new Set(rxs).size, ruy=new Set(rys).size;
+        // Find which axis the line runs along
+        let lineAxis;
+        if(rux===3) lineAxis='x';
+        else if(ruy===3) lineAxis='y';
+        else lineAxis='z';
+        // Get endpoints along the line axis
+        const coords = lineAxis==='x'?rxs:lineAxis==='y'?rys:rzs;
+        const minC=Math.min(...coords), maxC=Math.max(...coords);
+        const jc = lineAxis==='x'?jx:lineAxis==='y'?jy:jz;
+        // Elbow must align with an endpoint along the line axis
+        if(jc !== minC && jc !== maxC) continue;
+        // And must be offset by exactly 1 on a perpendicular axis
+        // All rest blocks at that endpoint share the same perpendicular coords
+        const endBlock = rest.find((b,i) => coords[i] === jc);
+        if(!endBlock) continue;
+        const ebx=Math.round(endBlock.wx/SP), eby=Math.round(endBlock.wy/SP), ebz=Math.round(endBlock.wz/SP);
+        const dx=Math.abs(jx-ebx), dy=Math.abs(jy-eby), dz=Math.abs(jz-ebz);
+        if(dx+dy+dz === 1) return true;
+      }
+    }
+    return false;
+  }
+
+  function isTShape(g) {
+    // T-shape: 3 in a line + 1 perpendicular from the MIDDLE of the line
+    // All 4 blocks coplanar
+    if(g.length !== 4) return false;
+    const xs=g.map(b=>Math.round(b.wx/SP)), ys=g.map(b=>Math.round(b.wy/SP)), zs=g.map(b=>Math.round(b.wz/SP));
+    const ux=new Set(xs).size, uy=new Set(ys).size, uz=new Set(zs).size;
+    if(!(ux===1 || uy===1 || uz===1)) return false; // must be coplanar
+    // Try each block as the stem (the one off the line)
+    for(let j=0; j<4; j++) {
+      const rest = g.filter((_,i)=>i!==j);
+      if(isLinePattern(rest)) {
+        const rxs=rest.map(b=>Math.round(b.wx/SP)), rys=rest.map(b=>Math.round(b.wy/SP)), rzs=rest.map(b=>Math.round(b.wz/SP));
+        const rux=new Set(rxs).size, ruy=new Set(rys).size;
+        let lineAxis = rux===3 ? 'x' : ruy===3 ? 'y' : 'z';
+        const coords = lineAxis==='x'?rxs:lineAxis==='y'?rys:rzs;
+        const minC=Math.min(...coords), maxC=Math.max(...coords);
+        const midC=(minC+maxC)/2;
+        const jx=Math.round(g[j].wx/SP), jy=Math.round(g[j].wy/SP), jz=Math.round(g[j].wz/SP);
+        const jc = lineAxis==='x'?jx:lineAxis==='y'?jy:jz;
+        // Stem must align with the MIDDLE of the line
+        if(jc !== midC) continue;
+        // Stem must be adjacent (offset 1 perpendicular to line)
+        const midBlock = rest.find((b,i) => coords[i] === midC);
+        if(!midBlock) continue;
+        const mx=Math.round(midBlock.wx/SP), my=Math.round(midBlock.wy/SP), mz=Math.round(midBlock.wz/SP);
+        const dx=Math.abs(jx-mx), dy=Math.abs(jy-my), dz=Math.abs(jz-mz);
+        if(dx+dy+dz === 1) return true;
+      }
+    }
+    return false;
+  }
+
+  function isSimplePattern(g) {
+    return isLinePattern(g) || isSquare(g) || isLShape(g) || isTShape(g);
+  }
+
+  function isLinear(g) {
+    return isSimplePattern(g);
+  }
+
+  // Build a set of all alive block positions for fast lookup
+  const aliveSet = new Set(blocks.filter(b=>b.alive).map(b=>
+    Math.round(b.wx/SP)+','+Math.round(b.wy/SP)+','+Math.round(b.wz/SP)
+  ));
+
+  // A block is surface-exposed if at least one face-adjacent cell is empty
+  function isExposed(b) {
+    const x=Math.round(b.wx/SP), y=Math.round(b.wy/SP), z=Math.round(b.wz/SP);
+    return !aliveSet.has((x+1)+','+y+','+z) ||
+           !aliveSet.has((x-1)+','+y+','+z) ||
+           !aliveSet.has(x+','+(y+1)+','+z) ||
+           !aliveSet.has(x+','+(y-1)+','+z) ||
+           !aliveSet.has(x+','+y+','+(z+1)) ||
+           !aliveSet.has(x+','+y+','+(z-1));
+  }
+
+  // A group is viable if ALL its blocks are surface-exposed (reachable by projectile)
+  function isViable(g) {
+    return g.every(b => isExposed(b));
+  }
+
+  // Strict internal connectivity using integer grid coords
+  function isInternallyConnected(g) {
+    if(g.length < 2) return false;
+    const gKeys = new Set(g.map(b => { const [x,y,z]=toGrid(b); return gridKey(x,y,z); }));
+    return g.every(b => {
+      const [x,y,z] = toGrid(b);
+      return DIRS.some(([dx,dy,dz]) => gKeys.has(gridKey(x+dx,y+dy,z+dz)));
+    });
+  }
+
+  // Filter to matching color, viable, internally connected, and isLinear
+  const linearGroups = groups.filter(g =>
+    g[0].colorIdx === colorIdx &&
+isViable(g) &&
+    isInternallyConnected(g) &&
+    (g.length < 3 || isLinear(g))
+  );
+
+  // Never show wrong color
+  if(!linearGroups.length) { currentGoal = null; clearGoalCanvas(); return; }
+
+  // Classify each group's shape and pick with variety preference.
+  // Priority order (most interesting first): Square > L > T > 5-line > 4-line > 3-line
+  function shapeRank(g) {
+    if(isSquare(g))    return 0;   // 2x2 square — highest priority
+    if(isLShape(g))    return 1;   // L-shape
+    if(isTShape(g))    return 2;   // T-shape
+    if(isLinePattern(g)) {
+      if(g.length === 5) return 3; // 5-line
+      if(g.length === 4) return 4; // 4-line
+      return 5;                    // 3-line — lowest priority
+    }
+    return 99;
+  }
+  linearGroups.sort((a,b) => {
+    const ra = shapeRank(a), rb = shapeRank(b);
+    if(ra !== rb) return ra - rb; // lower rank = more preferred
+    // Tiebreak: prefer flatter (visible on one face) then larger
+    const azs = new Set(a.map(bl=>Math.round(bl.wz/SP))).size;
+    const bzs = new Set(b.map(bl=>Math.round(bl.wz/SP))).size;
+    if(azs !== bzs) return azs - bzs;
+    return b.length - a.length;
+  });
+  // To add variety: 60% of the time pick the top-ranked group,
+  // 40% pick randomly from the top 3 ranked groups
+  let group;
+  if(linearGroups.length > 1 && Math.random() < 0.4) {
+    const topN = Math.min(3, linearGroups.length);
+    group = linearGroups[Math.floor(Math.random() * topN)];
+  } else {
+    group = linearGroups[0];
+  }
+  currentGoal = {
+    blocks: group,
+    colorIdx: group[0].colorIdx,
+    colorHex: group[0].colorHex,
+    size: group.length
+  };
+  drawGoalPreview(currentGoal);
+  const dlabel = document.getElementById('goal-debug-label');
+  if(dlabel) dlabel.textContent = describeGoal(currentGoal);
+}
+
+function describeGoal(goal) {
+  const names = ['red','blue','green','orange','purple','white'];
+  const g = goal.blocks;
+  const xs = g.map(b=>Math.round(b.wx/SP));
+  const ys = g.map(b=>Math.round(b.wy/SP));
+  const zs = g.map(b=>Math.round(b.wz/SP));
+  const uxs=new Set(xs).size, uys=new Set(ys).size, uzs=new Set(zs).size;
+  let shape = 'group';
+  if(g.length===4 && ((uxs===2&&uys===2&&uzs===1)||(uxs===2&&uzs===2&&uys===1)||(uys===2&&uzs===2&&uxs===1))) shape='2x2';
+  else if(uxs>=3&&uys===1&&uzs===1) shape='row-x';
+  else if(uys>=3&&uxs===1&&uzs===1) shape='col-y';
+  else if(uzs>=3&&uxs===1&&uys===1) shape='row-z';
+  else if(g.length===4) shape='T';
+  return `${names[goal.colorIdx]} ${shape}(${g.length}) z=${[...new Set(zs)]}`;
+}
+function drawGoalPreview(goal) {
+  const canvas = document.getElementById('goal-canvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+  if(!goal || !goal.blocks || !goal.blocks.length) return;
+
+  // Get integer grid coords for all blocks
+  const gxs = goal.blocks.map(b => Math.round(b.wx / SP));
+  const gys = goal.blocks.map(b => Math.round(b.wy / SP));
+  const gzs = goal.blocks.map(b => Math.round(b.wz / SP));
+  const rangeX = Math.max(...gxs) - Math.min(...gxs);
+  const rangeY = Math.max(...gys) - Math.min(...gys);
+  const rangeZ = Math.max(...gzs) - Math.min(...gzs);
+
+  // Pick the TWO axes with the largest spread — that's the plane the pattern lies in.
+  // This handles patterns on any face (XY front/back, XZ top/bottom, YZ left/right).
+  const ranges = [['x', rangeX], ['y', rangeY], ['z', rangeZ]];
+  ranges.sort((a,b) => b[1] - a[1]);
+  const [axisH, axisV] = [ranges[0][0], ranges[1][0]];
+
+  const getCoord = (b, axis) => {
+    if(axis==='x') return Math.round(b.wx / SP);
+    if(axis==='y') return Math.round(b.wy / SP);
+    return Math.round(b.wz / SP);
+  };
+
+  const pts = goal.blocks.map(b => ({
+    h: getCoord(b, axisH),
+    v: getCoord(b, axisV)
+  }));
+
+  const minH = Math.min(...pts.map(p=>p.h));
+  const maxH = Math.max(...pts.map(p=>p.h));
+  const minV = Math.min(...pts.map(p=>p.v));
+  const maxV = Math.max(...pts.map(p=>p.v));
+  const cols = Math.max(1, maxH - minH + 1);
+  const rows = Math.max(1, maxV - minV + 1);
+  const cell = Math.min(Math.floor((W-12) / cols), Math.floor((H-12) / rows), 24);
+  const ox = Math.floor((W - cols*cell) / 2);
+  const oy = Math.floor((H - rows*cell) / 2);
+
+  ctx.fillStyle = goal.colorHex || '#888';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 1;
+
+  // Dedupe overlapping points (e.g. when a square is viewed edge-on)
+  const seen = new Set();
+  for(const {h, v} of pts) {
+    const k = h+','+v;
+    if(seen.has(k)) continue;
+    seen.add(k);
+    const px = ox + (h - minH) * cell;
+    // Flip vertical axis so higher V draws higher on canvas (matches 3D view)
+    const py = oy + (maxV - v) * cell;
+    ctx.fillRect(px+1, py+1, cell-2, cell-2);
+    ctx.strokeRect(px+1, py+1, cell-2, cell-2);
+  }
+}
+
+function clearGoalCanvas() {
+  const canvas = document.getElementById('goal-canvas');
+  if(canvas) canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
+}
+
+function checkGoalComplete(explodedBlocks) {
+  if(!currentGoal) return;
+  if(!explodedBlocks || explodedBlocks.length === 0) return;
+
+  const explodedColor = explodedBlocks[0].colorIdx;
+  if(explodedColor !== currentGoal.colorIdx) return;
+
+  if(explodedBlocks.length >= 2) {  // success if 2+ matching color blocks exploded
+    goalStars++;
+    currentGoal = null;
+    clearGoalCanvas();
+    showGoalCelebration(goalStars);
+    setTimeout(()=>pickNewGoalForColor(currentBlock.colorIdx), 2000);
+  }
+}
+
+function showGoalCelebration(totalStars) {
+  // Update star counter
+  document.getElementById('star-counter-val').textContent = totalStars;
+
+  // Big celebration overlay
+  const el = document.getElementById('goal-celebration');
+  const sub = document.getElementById('goal-celebration-sub');
+  if(sub) sub.textContent = totalStars + (totalStars === 1 ? ' STAR' : ' STARS');
+  el.classList.add('show');
+  // Reset star animation
+  const star = document.getElementById('goal-celebration-star');
+  star.style.animation = 'none';
+  star.offsetHeight; // reflow
+  star.style.animation = '';
+
+  setTimeout(()=>{ el.classList.remove('show'); }, 1800);
+}
+
+
+let cachedAliveMeshes = [];
+let cacheFrame = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),0.05);
+  cacheFrame++;
+
+  // ── Physics rotation ──
+  // Integrate angular velocity into pivot orientation using a rotation matrix
+  const angSpeed = angVel.length();
+  if(angSpeed > 0.0001) {
+    const axis = angVel.clone().normalize();
+    const angle = angSpeed * dt;
+    _rotQ.setFromAxisAngle(axis, angle);
+    pivot.quaternion.premultiply(_rotQ);
+  }
+  // Damping — slightly slower decay when no projectile in flight (coasting feel)
+  // Use low damping for several seconds after a charged hit
+  if(chargedHitTimer > 0) chargedHitTimer -= dt;
+  const damp = chargedHitTimer > 0 ? CHARGED_DAMPING : (proj.active ? ANGULAR_DAMPING : 0.992);
+  angVel.multiplyScalar(Math.pow(damp, dt * 60));
+  // Tiny idle nudge — always keep rotating gently regardless of hold/shoot state
+  if(angVel.length() < 0.10) {
+    angVel.x += (Math.random()-0.5)*0.002;
+    angVel.y += 0.004;
+  }
+
+  // ── Core animation ──────────────────────────────────────────────────────
+  coreGlowT+=dt*1.8;
+  if(coreMesh) {
+    coreMesh.rotation.y += dt * (coreExposed ? 2.2 : 0.8);
+    coreMesh.rotation.x += dt * (coreExposed ? 1.1 : 0.35);
+    // Pulse scale — stronger when exposed
+    const pulseAmt = coreExposed ? 0.14 : 0.05;
+    const pulseSpd = coreExposed ? 4.0  : 2.0;
+    coreMesh.scale.setScalar(1 + Math.sin(coreGlowT*pulseSpd)*pulseAmt);
+    // Pulse shell + rings — throttled to every 3 frames
+
+  }
+  if(coreExposed) {
+    coreLight.intensity = 3.5 + Math.sin(coreGlowT*2.1)*2;
+  } else {
+    coreLight.intensity = 0.6 + Math.sin(coreGlowT*1.5)*0.3;
+  }
+
+
+
+  if(shakeAmt>0.01) {
+    camera.position.x=(Math.random()-0.5)*shakeAmt;
+    camera.position.y=4+(Math.random()-0.5)*shakeAmt;
+    shakeAmt*=0.78;
+  } else { camera.position.x=0; camera.position.y=4; }
+
+  if(proj.active&&proj.mesh) {
+    let nextPos;
+    if(proj.useLob) {
+      // ── Lob arc: parabola strictly in world Y (up then down) ─────────────
+      proj.lobElapsed = (proj.lobElapsed||0) + dt;
+      const t = Math.min(proj.lobElapsed / proj.lobDuration, 1.0);
+      // Linear interpolation in XZ, parabolic in Y
+      _lobNext.set(
+        proj.lobStart.x + (proj.lobEnd.x - proj.lobStart.x) * t,
+        proj.lobStart.y + (proj.lobEnd.y - proj.lobStart.y) * t + proj.lobArcHeight * 4 * t * (1 - t),
+        proj.lobStart.z + (proj.lobEnd.z - proj.lobStart.z) * t
+      );
+      nextPos = _lobNext;
+    } else {
+      // ── Straight shot ──────────────────────────────────────────────────────
+      _strNext.set(
+        proj.mesh.position.x + proj.vx,
+        proj.mesh.position.y + proj.vy,
+        proj.mesh.position.z + proj.vz
+      );
+      nextPos = _strNext;
+    }
+    proj.mesh.position.copy(nextPos);
+    proj.mesh.rotation.x+=0.14; proj.mesh.rotation.y+=0.10; proj.mesh.rotation.z+=0.05;
+    proj.travelled += proj.useLob ? 0.1 : Math.hypot(proj.vx,proj.vy,proj.vz);
+
+    // ── Collision: convert proj world pos to pivot-local each frame ─────────
+    // Must re-compute every frame because pivot is rotating
+    const projLocal=pivot.worldToLocal(nextPos.clone());
+    const projR=PROJ_R[proj.shotSh]||0.44;
+
+    let hitBlock=null, hitDist=Infinity;
+    for(const b of blocks) {
+      if(!b.alive) continue;
+      const d=Math.hypot(projLocal.x-b.wx, projLocal.y-b.wy, projLocal.z-b.wz);
+      const blockR=PROJ_R[b.shape]||0.44;
+      if(d < projR+blockR*0.9 && d < hitDist) { hitDist=d; hitBlock=b; }
+    }
+
+    function killProj() {
+      scene.remove(proj.mesh); proj.mesh=null;
+      proj.trail.forEach(t=>scene.remove(t.mesh)); proj.trail=[];
+      proj.active=false;
+    }
+
+    if(hitBlock) {
+      const isMatch=(proj.shotCI===hitBlock.colorIdx && proj.shotSh===hitBlock.shape);
+
+      // Apply rotation impulse to pivot
+      hitBlock.mesh.getWorldPosition(_hitWorld);
+      pivot.getWorldPosition(_pWorld);
+      const power = proj.power||0;
+      // For lob shots, compute direction from parabola derivative at current t
+      let inDir;
+      if(proj.useLob) {
+        const t = Math.min((proj.lobElapsed||0) / proj.lobDuration, 1.0);
+        const dx = proj.lobEnd.x - proj.lobStart.x;
+        const dy = (proj.lobEnd.y - proj.lobStart.y) + proj.lobArcHeight * 4 * (1 - 2*t);
+        const dz = proj.lobEnd.z - proj.lobStart.z;
+        _inDir.set(dx, dy, dz).normalize(); inDir = _inDir;
+      } else {
+        _inDir.set(proj.vx, proj.vy, proj.vz).normalize(); inDir = _inDir;
+      }
+      const hitFromPivot = _hitWorld.clone().sub(_pWorld);
+
+      if(power > 0.05) {
+        // Charged hit: directly set a large angVel perpendicular to impact direction
+        _torAxis.crossVectors(hitFromPivot, inDir).normalize();
+        const torqueAxis = _torAxis;
+        if(torqueAxis.length() < 0.01) torqueAxis.set(0,1,0);
+        const spinSpeed = (isMatch ? 0.8 : 0.3) * power;
+        angVel.addScaledVector(torqueAxis, spinSpeed);
+        chargedHitTimer = 3.0 + power * 5.0;
+        // Show impact message only at full charge
+        if(power >= 0.99) showChargeMsg('💥 MAX IMPACT!', isMatch ? '#ff4400' : '#ff8800');
+      } else {
+        // Quick tap — normal small torque
+        applyImpactTorque(hitFromPivot, inDir, isMatch ? TORQUE_MATCH : TORQUE_MISS);
+      }
+
+      if(isMatch) {
+        doExplode(floodMatch(hitBlock,proj.shotCI,proj.shotSh));
+        killProj();
+      } else if(proj.useLob) {
+        // Lob mismatch: no bounce, just die on impact
+        playMiss(); bounceMesh(hitBlock.mesh);
+        applyImpactTorque(hitFromPivot, inDir, TORQUE_MISS);
+        killProj();
+      } else {
+        // Straight shot bounce
+        playMiss(); bounceMesh(hitBlock.mesh);
+        proj.bounceCount++;
+
+        // Normal in pivot-local space, then convert to world
+        _nLocal.set(projLocal.x-hitBlock.wx, projLocal.y-hitBlock.wy, projLocal.z-hitBlock.wz).normalize();
+        _nWorld.copy(_nLocal).applyQuaternion(pivot.quaternion);
+        const nWorld = _nWorld;
+        _vel.set(proj.vx,proj.vy,proj.vz);
+        const vel = _vel;
+        const dot=2*vel.dot(nWorld);
+        proj.vx=vel.x-dot*nWorld.x;
+        proj.vy=vel.y-dot*nWorld.y;
+        proj.vz=vel.z-dot*nWorld.z;
+        // Dampen + nudge away to avoid sticking
+        proj.vx*=0.65; proj.vy*=0.65; proj.vz*=0.65;
+        proj.mesh.position.addScaledVector(nWorld, 0.2);
+
+        if(proj.bounceCount>=3 || proj.travelled>proj.maxDist) killProj();
+      }
+    } else if(proj.travelled>proj.maxDist || (proj.useLob && (proj.lobElapsed||0)>=proj.lobDuration)) {
+      killProj();
+    } else {
+      // Trail: simple pre-allocated approach — reuse from a small pool
+      // (no new allocations during flight)
+    }
+  }
+
+  // trail update removed — no per-frame allocations
+
+  // ── Falling detached blocks ──
+  const now = performance.now();
+  for(let i=fallingBlocks.length-1;i>=0;i--) {
+    const f=fallingBlocks[i];
+    if(f.delay && f.delay>0){ f.delay-=dt*1000; continue; }
+
+    if(f.worldSpace) {
+      // Matched block falling through WORLD space toward the funnel
+      // Gravity
+      f.vy -= dt * 0.9;
+      // Cap downward velocity
+      if(f.vy < -0.35) f.vy = -0.35;
+      f.mesh.position.x += f.vx;
+      f.mesh.position.y += f.vy;
+      f.mesh.position.z += f.vz;
+      // Tumble
+      f.mesh.rotation.x += f.rx;
+      f.mesh.rotation.y += f.ry;
+      f.mesh.rotation.z += f.rz;
+
+      // Funnel wall constraint: if block is between FUNNEL_TOP_Y and FUNNEL_BOTTOM_Y,
+      // clamp its XZ distance to the funnel radius at that Y (linear interpolation)
+      const py = f.mesh.position.y;
+      if(py <= FUNNEL_TOP_Y && py >= FUNNEL_BOTTOM_Y) {
+        const t = (py - FUNNEL_BOTTOM_Y) / (FUNNEL_TOP_Y - FUNNEL_BOTTOM_Y); // 1 at top, 0 at bottom
+        const maxR = FUNNEL_BOTTOM_R + (FUNNEL_TOP_R - FUNNEL_BOTTOM_R) * t - 0.15;
+        const dx = f.mesh.position.x, dz = f.mesh.position.z;
+        const r = Math.hypot(dx, dz);
+        if(r > maxR) {
+          // Push inward and reflect velocity slightly
+          const nx = dx / r, nz = dz / r;
+          f.mesh.position.x = nx * maxR;
+          f.mesh.position.z = nz * maxR;
+          // Reflect inward with damping
+          const vDotN = f.vx * nx + f.vz * nz;
+          f.vx -= 1.5 * vDotN * nx;
+          f.vz -= 1.5 * vDotN * nz;
+          f.vx *= 0.85; f.vz *= 0.85;
+          // Friction-like damping on rotation
+          f.rx *= 0.9; f.ry *= 0.9; f.rz *= 0.9;
+        }
+      }
+
+      // Floor at funnel bottom — block rests here (temporary until carts receive them)
+      const floorY = FUNNEL_BOTTOM_Y + SP * 0.5; // block centre sits half-a-block above floor
+      if(f.mesh.position.y < floorY) {
+        f.mesh.position.y = floorY;
+        if(f.vy < 0) f.vy = -f.vy * 0.25; // bounce with heavy damping
+        f.vx *= 0.75; f.vz *= 0.75;
+        f.rx *= 0.6; f.ry *= 0.6; f.rz *= 0.6;
+      }
+
+      // ── Collision with other blocks currently in the funnel ────────────
+      // Sphere approximation: block radius ~ half block diagonal projected (SP*0.5 is fine)
+      const radius = SP * 0.5;
+      // Build list of all settled funnelBlocks PLUS other still-falling blocks
+      const collideTargets = [];
+      for(const fb of funnelBlocks) collideTargets.push(fb.mesh);
+      for(let j=0; j<fallingBlocks.length; j++) {
+        if(j === i) continue;
+        const other = fallingBlocks[j];
+        if(other.worldSpace) collideTargets.push(other.mesh);
+      }
+      for(const otherMesh of collideTargets) {
+        const dx = f.mesh.position.x - otherMesh.position.x;
+        const dy = f.mesh.position.y - otherMesh.position.y;
+        const dz = f.mesh.position.z - otherMesh.position.z;
+        const distSq = dx*dx + dy*dy + dz*dz;
+        const minDist = radius * 2;
+        if(distSq < minDist*minDist && distSq > 0.0001) {
+          const dist = Math.sqrt(distSq);
+          const nx = dx/dist, ny = dy/dist, nz = dz/dist;
+          // Push this block out along collision normal
+          const overlap = minDist - dist;
+          f.mesh.position.x += nx * overlap * 0.6;
+          f.mesh.position.y += ny * overlap * 0.6;
+          f.mesh.position.z += nz * overlap * 0.6;
+          // Reflect velocity along normal if moving into the other block
+          const vDotN = f.vx*nx + f.vy*ny + f.vz*nz;
+          if(vDotN < 0) {
+            f.vx -= 1.3 * vDotN * nx;
+            f.vy -= 1.3 * vDotN * ny;
+            f.vz -= 1.3 * vDotN * nz;
+            // Damping on bounce
+            f.vx *= 0.7; f.vy *= 0.7; f.vz *= 0.7;
+          }
+        }
+      }
+
+      // Settle block when it's at rest (slow and below the funnel mouth)
+      const speed = Math.hypot(f.vx, f.vy, f.vz);
+      if(speed < 0.01 && f.mesh.position.y < FUNNEL_TOP_Y && !f.settling) {
+        f.settling = true;
+        f.settleTimer = 0;
+      }
+      if(f.settling) {
+        f.settleTimer = (f.settleTimer||0) + dt;
+        // After staying slow for a moment, convert to a settled funnelBlock
+        if(f.settleTimer > 0.25) {
+          funnelBlocks.push({
+            mesh: f.mesh,
+            colorIdx: f.colorIdx,
+            colorHex: f.colorHex,
+            settledAt: performance.now()
+          });
+          fallingBlocks.splice(i,1);
+          continue;
+        }
+        // Damp motion while settling
+        f.vx *= 0.85; f.vy *= 0.85; f.vz *= 0.85;
+        f.rx *= 0.85; f.ry *= 0.85; f.rz *= 0.85;
+      }
+      if(speed >= 0.01 && f.settling) {
+        // Disturbed — keep falling
+        f.settling = false; f.settleTimer = 0;
+      }
+
+      // Safety: if a block somehow misses the funnel entirely, despawn at y=-10
+      if(py < -10) {
+        scene.remove(f.mesh);
+        fallingBlocks.splice(i,1);
+        continue;
+      }
+    } else {
+      // Legacy pivot-local falling (used by detachFloaters for now)
+      if(f.life === undefined) f.life = 1.0;
+      f.life -= dt * 0.55;
+      if(f.life<=0) {
+        pivot.remove(f.mesh);
+        fallingBlocks.splice(i,1);
+        continue;
+      }
+      f.vy -= dt * 0.18;
+      f.mesh.position.x += f.vx;
+      f.mesh.position.y += f.vy;
+      f.mesh.position.z += f.vz;
+      f.mesh.rotation.x += f.rx;
+      f.mesh.rotation.y += f.ry;
+      f.mesh.rotation.z += f.rz;
+      f.mesh.traverse(child=>{
+        if(child.isMesh && child.material){
+          if(!child.material.transparent) child.material = child.material.clone();
+          child.material.transparent=true;
+          child.material.opacity=Math.min(f.life,1.0);
+        }
+      });
+    }
+  }
+
+  // Shared light fade
+  if(_lightLife>0){ _lightLife-=dt*2.5; _sharedLight.intensity=Math.max(0,_lightLife)*3.5; }
+
+  // Physics update for blocks already settled in the funnel (so piles shift naturally)
+  updateFunnelBlocks(dt);
+  // Funnel → belt: release settled funnel blocks onto the upper belt
+  releaseFromFunnelToBelt(dt);
+  // Move blocks around the loop; drop into matching carts from lower run
+  updateBeltBlocks(dt);
+  // Animate blocks falling from belt into their cart slot
+  updateCartDrops(dt);
+
+  for(let i=particles3d.length-1;i>=0;i--) {
+    const p=particles3d[i]; p.life-=p.decay;
+    if(p.life<=0){
+      if(p.type==='pooled'){ releaseParticle(p.p); }
+      else if(p.owned && p.mesh){ pivot.remove(p.mesh); p.mesh.material.dispose(); }
+      particles3d.splice(i,1); continue;
+    }
+    if(p.type==='pooled'){
+      p.p.mesh.position.x+=p.vx; p.p.mesh.position.y+=p.vy; p.p.mesh.position.z+=p.vz;
+      p.vy-=0.006; p.vx*=0.97; p.vz*=0.97;
+      p.p.mesh.material.opacity=p.life;
+    } else if(p.type==='ring'){
+      const s=1+(p.scaleRate||4)*(1-p.life); p.mesh.scale.set(s,s,1);
+      p.mesh.material.opacity=p.life*0.75;
+    }
+  }
+
+  // Redraw trajectory each frame while holding (pivot rotates)
+  if(isHolding){ trajActive=true; if(trajTarget && trajTarget.alive) drawTrajectory(); else clearTrajDots(); }
+  // Redraw 2D trajectory in RAF while holding (keeps aligned as cluster rotates)
+  if(lobMode && lobHolding && (lobCurX||lobCurY)){
+    updateTrajImmediate();
+  } else if(!lobHolding) {
+    clearTraj2D();
+  }
+  targetReticle.visible = false;
+
+  // Animate space sky
+  if(cacheFrame % 2 === 0) skyMat.uniforms.time.value += dt * 1.6; // update every other frame
+  renderer.render(scene,camera);
+}
+animate();
+</script>
+<div id="debug-panel" style="display:none;">
+  <span style="opacity:0.5;font-size:10px;">CAM Y</span>
+  <button onclick="adjustCamY(-0.5)" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:white;border-radius:4px;width:22px;height:22px;font-size:14px;cursor:pointer;">−</button>
+  <span id="dp-camy" style="font-weight:700;min-width:28px;text-align:center;">2.0</span>
+  <button onclick="adjustCamY(+0.5)" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:white;border-radius:4px;width:22px;height:22px;font-size:14px;cursor:pointer;">+</button>
+  <span style="opacity:0.3;">|</span>
+  <span style="opacity:0.5;font-size:10px;">ORIG Y</span>
+  <button onclick="adjustOriginY(-0.5)" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:white;border-radius:4px;width:22px;height:22px;font-size:14px;cursor:pointer;">−</button>
+  <span id="dp-originy" style="font-weight:700;min-width:28px;text-align:center;">-5.0</span>
+  <button onclick="adjustOriginY(+0.5)" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:white;border-radius:4px;width:22px;height:22px;font-size:14px;cursor:pointer;">+</button>
+</div>
+<div id="fire-debug">
+  <div id="fire-debug-swatch"></div>
+  <div id="fire-debug-label">WILL FIRE</div>
+</div>
+
+<!-- Goal celebration overlay -->
+<div id="goal-celebration">
+  <div id="goal-celebration-star">⭐</div>
+  <div id="goal-celebration-text">MATCH!</div>
+  <div id="goal-celebration-sub" id="goal-sub-text">+1 STAR</div>
+</div>
+  <div style="display:flex;align-items:center;gap:5px;">
+    <span style="opacity:0.6;font-size:10px;width:52px;">HIT✓</span>
+    <button onclick="adj('TORQUE_MATCH',-0.1)" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:4px;width:22px;height:22px;font-size:14px;cursor:pointer;">−</button>
+    <span id="dp-tmatch" style="font-weight:700;min-width:30px;text-align:center;">1.4</span>
+    <button onclick="adj('TORQUE_MATCH',+0.1)" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:4px;width:22px;height:22px;font-size:14px;cursor:pointer;">+</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:5px;">
+    <span style="opacity:0.6;font-size:10px;width:52px;">MISS✗</span>
+    <button onclick="adj('TORQUE_MISS',-0.1)" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:4px;width:22px;height:22px;font-size:14px;cursor:pointer;">−</button>
+    <span id="dp-tmiss" style="font-weight:700;min-width:30px;text-align:center;">0.5</span>
+    <button onclick="adj('TORQUE_MISS',+0.1)" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:4px;width:22px;height:22px;font-size:14px;cursor:pointer;">+</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:5px;">
+    <span style="opacity:0.6;font-size:10px;width:52px;">MAX</span>
+    <button onclick="adj('MAX_ANG_SPEED',-0.5)" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:4px;width:22px;height:22px;font-size:14px;cursor:pointer;">−</button>
+    <span id="dp-maxspd" style="font-weight:700;min-width:30px;text-align:center;">6.0</span>
+    <button onclick="adj('MAX_ANG_SPEED',+0.5)" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:4px;width:22px;height:22px;font-size:14px;cursor:pointer;">+</button>
+  </div>
+</div>
+<!-- Dev tuning panel: position offsets for scene elements + belt speed -->
+<div id="dev-panel" style="display:none;">
+  <div style="font-weight:700;font-size:10px;letter-spacing:1px;opacity:0.7;text-align:center;">DEV — Y offsets (world units)</div>
+  <div data-key="cluster"  class="dev-row" style="display:flex;align-items:center;gap:6px;">
+    <span style="opacity:0.7;width:54px;">CLUSTER</span>
+    <button class="dev-dn" style="flex:0 0 22px;height:22px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:4px;cursor:pointer;">−</button>
+    <span class="dev-val" style="font-weight:700;min-width:42px;text-align:center;">0.0</span>
+    <button class="dev-up" style="flex:0 0 22px;height:22px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:4px;cursor:pointer;">+</button>
+  </div>
+  <div data-key="funnel"   class="dev-row" style="display:flex;align-items:center;gap:6px;">
+    <span style="opacity:0.7;width:54px;">FUNNEL</span>
+    <button class="dev-dn" style="flex:0 0 22px;height:22px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:4px;cursor:pointer;">−</button>
+    <span class="dev-val" style="font-weight:700;min-width:42px;text-align:center;">0.0</span>
+    <button class="dev-up" style="flex:0 0 22px;height:22px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:4px;cursor:pointer;">+</button>
+  </div>
+  <div data-key="belt"     class="dev-row" style="display:flex;align-items:center;gap:6px;">
+    <span style="opacity:0.7;width:54px;">BELT</span>
+    <button class="dev-dn" style="flex:0 0 22px;height:22px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:4px;cursor:pointer;">−</button>
+    <span class="dev-val" style="font-weight:700;min-width:42px;text-align:center;">0.0</span>
+    <button class="dev-up" style="flex:0 0 22px;height:22px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:4px;cursor:pointer;">+</button>
+  </div>
+  <div data-key="carts"    class="dev-row" style="display:flex;align-items:center;gap:6px;">
+    <span style="opacity:0.7;width:54px;">CARTS</span>
+    <button class="dev-dn" style="flex:0 0 22px;height:22px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:4px;cursor:pointer;">−</button>
+    <span class="dev-val" style="font-weight:700;min-width:42px;text-align:center;">0.0</span>
+    <button class="dev-up" style="flex:0 0 22px;height:22px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:4px;cursor:pointer;">+</button>
+  </div>
+  <div data-key="action"   class="dev-row" style="display:flex;align-items:center;gap:6px;">
+    <span style="opacity:0.7;width:54px;">ACTION</span>
+    <button class="dev-dn" style="flex:0 0 22px;height:22px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:4px;cursor:pointer;">−</button>
+    <span class="dev-val" style="font-weight:700;min-width:42px;text-align:center;">0px</span>
+    <button class="dev-up" style="flex:0 0 22px;height:22px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:4px;cursor:pointer;">+</button>
+  </div>
+  <div data-key="belt-speed" class="dev-row" style="display:flex;align-items:center;gap:6px;border-top:1px solid rgba(255,255,255,0.15);padding-top:5px;">
+    <span style="opacity:0.7;width:54px;">SPEED</span>
+    <button class="dev-dn" style="flex:0 0 22px;height:22px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:4px;cursor:pointer;">−</button>
+    <span class="dev-val" style="font-weight:700;min-width:42px;text-align:center;">0.80</span>
+    <button class="dev-up" style="flex:0 0 22px;height:22px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:4px;cursor:pointer;">+</button>
+  </div>
+  <button id="dev-reset" style="margin-top:3px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.25);color:white;border-radius:4px;padding:4px;font-size:10px;cursor:pointer;">RESET ALL</button>
+</div>
+<script>
+(function(){
+  // Y offsets (world units) applied to each group's position.y
+  const offsets = { cluster:0, funnel:0, belt:0, carts:0 };
+  const ACTION_START_TOP = 50;  // matches baked #shooter-ui CSS top:50px
+  let actionOffsetPx = 0;
+
+  function render() {
+    document.querySelectorAll('.dev-row').forEach(row => {
+      const key = row.dataset.key;
+      const val = row.querySelector('.dev-val');
+      if(key === 'action')       val.textContent = actionOffsetPx + 'px';
+      else if(key === 'belt-speed') val.textContent = (typeof BELT_SPEED!=='undefined'?BELT_SPEED:0).toFixed(2);
+      else                        val.textContent = offsets[key].toFixed(1);
+    });
+  }
+
+  function apply() {
+    // Cluster — pivot group
+    if(typeof pivot !== 'undefined' && pivot) pivot.position.y = offsets.cluster;
+    // Funnel group
+    if(typeof funnelGroup !== 'undefined' && funnelGroup) funnelGroup.position.y = offsets.funnel;
+    // Belt group
+    if(typeof beltGroup !== 'undefined' && beltGroup) beltGroup.position.y = offsets.belt;
+    // Carts — each cart group needs updating; we store the base y the first time
+    if(typeof carts !== 'undefined' && carts.length) {
+      for(const cart of carts) {
+        if(cart._baseY === undefined) cart._baseY = cart.group.position.y;
+        cart.group.position.y = cart._baseY + offsets.carts;
+      }
+    }
+    // Action bar — CSS top
+    const sui = document.getElementById('shooter-ui');
+    if(sui) sui.style.top = (ACTION_START_TOP + actionOffsetPx) + 'px';
+  }
+
+  function bump(key, delta) {
+    if(key === 'action') {
+      actionOffsetPx = Math.round(actionOffsetPx + delta);
+    } else if(key === 'belt-speed') {
+      if(typeof BELT_SPEED !== 'undefined') {
+        BELT_SPEED = Math.max(0, +(BELT_SPEED + delta).toFixed(2));
+      }
+    } else {
+      offsets[key] = +(offsets[key] + delta).toFixed(1);
+    }
+    apply();
+    render();
+  }
+
+  document.querySelectorAll('.dev-row').forEach(row => {
+    const key = row.dataset.key;
+    const up  = row.querySelector('.dev-up');
+    const dn  = row.querySelector('.dev-dn');
+    let stepUp = 0.1, stepDn = -0.1;
+    if(key === 'action')     { stepUp = -10; stepDn = 10; } // up = smaller CSS top
+    if(key === 'belt-speed') { stepUp = 0.1; stepDn = -0.1; }
+    up.addEventListener('click', ()=>bump(key, stepUp));
+    dn.addEventListener('click', ()=>bump(key, stepDn));
+  });
+  document.getElementById('dev-reset').addEventListener('click', () => {
+    offsets.cluster = 0; offsets.funnel = 0; offsets.belt = 0; offsets.carts = 0;
+    actionOffsetPx = 0;
+    apply(); render();
+  });
+
+  // First render after a short delay so carts are spawned and vars defined.
+  // If the panel is hidden (baked values in effect), skip apply() so we don't
+  // overwrite the baked scene positions with zero offsets.
+  setTimeout(() => {
+    const panel = document.getElementById('dev-panel');
+    if(panel && panel.style.display === 'none') { render(); return; }
+    apply(); render();
+  }, 300);
+})();
+</script>
+<!-- Debug: restart current level -->
+<button id="restart-btn" style="position:fixed;bottom:10px;right:10px;z-index:100;background:rgba(20,20,30,0.85);border:1px solid rgba(255,255,255,0.25);color:white;border-radius:8px;padding:8px 14px;font-family:-apple-system,sans-serif;font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.4);">↻ RESTART LEVEL 1</button>
+<script>
+(function(){
+  document.getElementById('restart-btn').addEventListener('click', ()=>{ if(window.restartLevel1) window.restartLevel1(); });
+  document.getElementById('restart-btn').addEventListener('touchend', e=>{ e.preventDefault(); if(window.restartLevel1) window.restartLevel1(); }, {passive:false});
+})();
+</script>
+</body>
+</html>
