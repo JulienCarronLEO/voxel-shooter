@@ -6,7 +6,7 @@
 <title>Voxel Shooter 3D</title>
 <style>
 /* ── MATCH MECHANIC HIDDEN (temporarily while funnel/conveyor is developed) ── */
-#goal-ui, #goal-label, #goal-canvas, #goal-debug-label, #star-counter, #combo, #score, #core-msg, #charge-msg, #hint, #goal-celebration, #goal-celebration-star, #goal-celebration-text, #goal-celebration-sub, #fire-debug, #shooter-ui, #level-badge, #lives-ui { display: none !important; }
+#goal-ui, #goal-label, #goal-canvas, #goal-debug-label, #star-counter, #combo, #score, #core-msg, #charge-msg, #hint, #goal-celebration, #goal-celebration-star, #goal-celebration-text, #goal-celebration-sub, #fire-debug, #level-badge, #lives-ui { display: none !important; }
 
 * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; -webkit-user-select: none; }
 html, body { width: 100%; height: 100%; overflow: hidden; background: #000010; }
@@ -391,7 +391,7 @@ canvas#threeCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%
       </div>
     </div>
     <canvas id="nextPreview" width="60" height="60" style="display:none;"></canvas>
-    <span>Swap</span>
+    <span>SWAP</span>
   </div>
   <div class="proj-slot" id="fire-slot" style="position:relative;">
     <div class="cube3d-wrap" id="fireCubeWrap" style="width:86px;height:86px;">
@@ -402,7 +402,7 @@ canvas#threeCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%
       </div>
     </div>
     <canvas id="currentPreview" width="86" height="86" style="display:none;"></canvas>
-    <span>Fire</span>
+    <span>NEXT</span>
   </div>
   <div class="proj-slot" id="lob-slot" style="display:none;">
     <canvas id="lobPreview" width="60" height="60"></canvas>
@@ -844,12 +844,12 @@ const COLORS    = [0xe74c3c, 0x2980ff, 0x27ae60, 0xf39c12, 0x9b59b6, 0xeeeeee];
 const COLOR_HEX = ['#e74c3c','#2980ff','#27ae60','#f39c12','#9b59b6','#eeeeee'];
 
 const pivot = new THREE.Group();
-pivot.position.y = 0.5; // baked offset from dev panel
+pivot.position.y = 1.3; // baked (was 0.5, +0.8 from dev panel)
 scene.add(pivot);
 
 // ── Funnel below the cluster (world space, does not rotate) ───────────────
-const FUNNEL_TOP_Y    = -0.2;   // baked: +1.2 from dev panel
-const FUNNEL_BOTTOM_Y = -1.7;   // baked: +1.2 from dev panel
+const FUNNEL_TOP_Y    =  0.2;   // baked: +1.2 then +0.4 = +1.6 total
+const FUNNEL_BOTTOM_Y = -1.3;   // baked: +1.2 then +0.4 = +1.6 total
 const FUNNEL_TOP_R    = 2.6;    // wide mouth radius (covers full cluster footprint)
 const FUNNEL_BOTTOM_R = 0.45;   // narrow end radius
 const funnelGroup = new THREE.Group();
@@ -887,15 +887,15 @@ const SLOT_SPACING = SP * 1.1;
 const CART_WIDTH   = CART_SLOTS * SLOT_SPACING + 0.12;
 const CART_DEPTH   = SP * 1.3;
 const CART_HEIGHT  = SP * 1.5;
-const CART_COUNT   = 3;    // user wants 3 carts
+const CART_COUNT   = 2;    // 2 active carts per row (plus 2 queue carts below)
 
 // Belt oval geometry
 const BELT_R        = 0.55;                       // pulley radius (bigger = more gap between runs)
 const BELT_GAP      = BELT_R * 2;                 // distance between upper and lower runs = 2*R
-const BELT_TOP_Y    = -2.8;                       // baked: +0.7 from dev panel
+const BELT_TOP_Y    = -2.4;                       // baked: +0.7 then +0.4 = +1.1 total
 const BELT_BOT_Y    = BELT_TOP_Y - BELT_GAP;      // lower surface world Y
 const BELT_CENTRE_Y = (BELT_TOP_Y + BELT_BOT_Y) / 2; // pulley centre Y
-const BELT_STR      = 4.5;                        // belt length (shrunk from 6.0 for 3 carts)
+const BELT_STR      = 3.0;                        // belt length (shrunk for 2 carts)
 const BELT_DEPTH    = CART_DEPTH + 0.25;          // Z-thickness
 let BELT_SPEED = 1.6;                             // world units per second along the loop
 
@@ -982,7 +982,15 @@ scene.add(beltGroup);
 // ── Carts: stationary row below the lower run ──────────────────────────────
 const CART_ROW_Y   = BELT_BOT_Y - CART_HEIGHT/2 - 0.35; // centre Y of each cart
 const CART_SPACING = BELT_STR / CART_COUNT;
-let carts = [];  // [{group, colorIdx, colorHex, x (centre X, fixed), slots[], landedCount, completing}]
+let carts = [];  // ACTIVE (top-row) carts — catch blocks. Flat list of CART_COUNT carts.
+let queueCarts = [];  // QUEUE (bottom-row) carts — purely visual; promote into top row on demand.
+
+// Vertical spacing between top-row and queue-row carts
+const CART_QUEUE_GAP = CART_HEIGHT + 0.15;
+// World Y of the TOP row (the active carts). Matches positionCart logic.
+const TOP_ROW_Y   = CART_ROW_Y - 0.7 + 0.5; // baked +0.5 (was +0.7, then -0.2 from dev panel)
+// World Y of the QUEUE row (the on-deck row beneath)
+const QUEUE_ROW_Y = TOP_ROW_Y - CART_QUEUE_GAP;
 
 function makeCart(colorIdx) {
   const colorHex = COLORS[colorIdx];
@@ -1024,7 +1032,11 @@ function makeCart(colorIdx) {
 }
 
 function pickFreshColor(excludeCarts) {
-  // Pick a colour that isn't already on the belt line-up, preferring alive cluster colours
+  // Pick a colour not already used by any of the excluded carts, preferring alive cluster colours.
+  // If no explicit exclusion list is passed, default to excluding ALL visible carts (active + queue).
+  if(!excludeCarts) {
+    excludeCarts = [].concat(carts || [], queueCarts || []);
+  }
   const used = new Set(excludeCarts.map(c => c.colorIdx));
   const aliveColours = new Set();
   blocks.forEach(b => { if(b.alive) aliveColours.add(b.colorIdx); });
@@ -1034,27 +1046,100 @@ function pickFreshColor(excludeCarts) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-function positionCart(cart, slotIndex) {
-  // Evenly space slots across the belt's length
+function positionCart(cart, slotIndex, row) {
+  // Evenly space slots across the belt's length.
+  // row: 'top' (default, active row) or 'queue' (bottom on-deck row)
   cart.x = -BELT_STR/2 + CART_SPACING * (slotIndex + 0.5);
-  cart.group.position.set(cart.x, CART_ROW_Y - 0.7, 0); // baked: -0.7 Y offset (was +0.3 then -1.0)
+  const y = (row === 'queue') ? QUEUE_ROW_Y : TOP_ROW_Y;
+  cart.group.position.set(cart.x, y, 0);
+  cart.slotIndex = slotIndex;
+  cart.row = row || 'top';
 }
 
 function spawnInitialCarts() {
+  // Populate the active (top) row first, then the queue (bottom) row.
+  // pickFreshColor() auto-excludes both rows so all 4 carts get unique colours.
   for(let i = 0; i < CART_COUNT; i++) {
-    const ci = pickFreshColor(carts);
+    const ci = pickFreshColor();
     const cart = makeCart(ci);
-    positionCart(cart, i);
+    positionCart(cart, i, 'top');
     carts.push(cart);
+  }
+  for(let i = 0; i < CART_COUNT; i++) {
+    const ci = pickFreshColor();
+    const qcart = makeCart(ci);
+    positionCart(qcart, i, 'queue');
+    queueCarts.push(qcart);
   }
 }
 
+// Promote the queue cart at the given column up to the top row; spawn a new queue cart below.
+// The old (filled) top cart has already shrunk to zero and should be removed.
+function promoteQueueCart(oldCart, slotIndex) {
+  // 1) Kill the old top-row cart (it's already at scale 0 from celebration shrink).
+  scene.remove(oldCart.group);
+  const oldArrayIdx = carts.indexOf(oldCart);
+
+  // 2) Find the queue cart at this column (matching slotIndex).
+  const qIdx = queueCarts.findIndex(q => q.slotIndex === slotIndex);
+  let promoted;
+  if(qIdx >= 0) {
+    promoted = queueCarts[qIdx];
+    queueCarts.splice(qIdx, 1);
+  } else {
+    // Edge case: no queue cart — make one on the fly so the row isn't empty.
+    promoted = makeCart(pickFreshColor());
+    positionCart(promoted, slotIndex, 'queue');
+  }
+
+  // 3) Animate the promoted cart sliding UP from queue-row Y to top-row Y.
+  const startY = promoted.group.position.y;
+  const endY   = TOP_ROW_Y;
+  const t0     = performance.now();
+  const dur    = 300;
+  function slide() {
+    const t = Math.min(1, (performance.now() - t0) / dur);
+    // Ease-out cubic
+    const e = 1 - Math.pow(1 - t, 3);
+    promoted.group.position.y = startY + (endY - startY) * e;
+    if(t < 1) requestAnimationFrame(slide);
+    else {
+      promoted.row = 'top';
+      promoted.slotIndex = slotIndex;
+    }
+  }
+  slide();
+
+  // 4) Put the promoted cart into the active `carts` array at the same index.
+  if(oldArrayIdx >= 0) carts[oldArrayIdx] = promoted;
+  else carts.push(promoted);
+
+  // 5) Spawn a fresh cart in the now-empty queue position (unique colour).
+  const freshCi = pickFreshColor();  // auto-excludes all current active + queue
+  const fresh = makeCart(freshCi);
+  // Position off-screen at the queue slot first so we can fade/slide it in.
+  positionCart(fresh, slotIndex, 'queue');
+  // Small pop-in: start at scale 0, grow to 1 over 200ms after a brief delay.
+  fresh.group.scale.set(0.01, 0.01, 0.01);
+  const popT0 = performance.now() + 150; // delay so slide-up is visible first
+  function pop() {
+    const now = performance.now();
+    if(now < popT0) { requestAnimationFrame(pop); return; }
+    const t = Math.min(1, (now - popT0) / 200);
+    const e = 1 - Math.pow(1 - t, 3);
+    const s = 0.01 + (1 - 0.01) * e;
+    fresh.group.scale.set(s, s, s);
+    if(t < 1) requestAnimationFrame(pop);
+  }
+  pop();
+  queueCarts.push(fresh);
+}
+
+// Backwards-compatible shim: restartLevel1 still calls replaceCart(cart, idx).
+// Reset both rows to fresh carts.
 function replaceCart(cart, slotIndex) {
-  // Cart slot slotIndex was just emptied (cart was filled, celebrated, and is gone).
-  // Spawn a fresh cart in the same slot.
   scene.remove(cart.group);
-  const others = carts.filter(c => c !== cart);
-  const newCi = pickFreshColor(others);
+  const newCi = pickFreshColor();
   const fresh = makeCart(newCi);
   cart.group       = fresh.group;
   cart.colorIdx    = fresh.colorIdx;
@@ -1062,7 +1147,7 @@ function replaceCart(cart, slotIndex) {
   cart.slots       = [null, null, null];
   cart.landedCount = 0;
   cart.completing  = false;
-  positionCart(cart, slotIndex);
+  positionCart(cart, slotIndex, cart.row || 'top');
 }
 
 // ── Blocks on the belt ─────────────────────────────────────────────────────
@@ -1168,7 +1253,7 @@ function updateCartDrops(dt) {
     d.mesh.position.x += (targetX - d.mesh.position.x) * Math.min(1, dt * 8);
     d.mesh.position.z += (0 - d.mesh.position.z) * Math.min(1, dt * 8);
 
-    const restingY = (CART_ROW_Y - 0.7) + CART_HEIGHT * 0.35 - CART_HEIGHT/2; // matches cart offset
+    const restingY = (CART_ROW_Y - 0.7 + 0.5) + CART_HEIGHT * 0.35 - CART_HEIGHT/2; // matches cart offset
     if(d.mesh.position.y <= restingY) {
       // Snap and parent to cart
       d.mesh.position.set(slotOffsetX, CART_HEIGHT * 0.35 - (CART_HEIGHT/2 + 0.05), 0);
@@ -1188,7 +1273,7 @@ function updateCartDrops(dt) {
 let cartCount = 0;
 function celebrateCart(cart) {
   cart.completing = true;
-  const burstPos = new THREE.Vector3(cart.x, CART_ROW_Y - 0.7 + CART_HEIGHT, 0);
+  const burstPos = new THREE.Vector3(cart.x, CART_ROW_Y - 0.7 + 0.5 + CART_HEIGHT, 0);
   for(let k = 0; k < 10; k++) spawnParticles3d(burstPos.clone(), cart.colorHex);
   playPop(2);
   // Increment the cart counter with a brief pulse animation
@@ -1208,7 +1293,7 @@ function celebrateCart(cart) {
     const slotIdx = Math.round(((cart.x + BELT_STR/2) / CART_SPACING) - 0.5);
     function step() {
       const t = (performance.now() - t0) / dur;
-      if(t >= 1) { replaceCart(cart, slotIdx); return; }
+      if(t >= 1) { promoteQueueCart(cart, slotIdx); return; }
       const s = startScale * (1 - t);
       cart.group.scale.set(s, s, s);
       requestAnimationFrame(step);
@@ -2041,19 +2126,6 @@ threeCanvas.addEventListener('touchmove', e=>{
 }, {passive:false});
 
 function updateTrajImmediate() {
-  // NEW: while aiming, keep the projectile colour in sync with whatever block
-  //      the cursor is currently pointing at.
-  if(lobHolding && lobSnappedBlock) {
-    const _aim = getBlockAt(lobCurX, lobCurY);
-    if(_aim && _aim.colorIdx !== lobSnappedBlock.colorIdx) {
-      lobSnappedBlock.colorIdx = _aim.colorIdx;
-      lobSnappedBlock.color    = _aim.color;
-      lobSnappedBlock.colorHex = _aim.colorHex;
-      lobSnappedBlock.shape    = _aim.shape;
-      const _dbg = document.getElementById('fire-debug-swatch');
-      if(_dbg) _dbg.style.background = _aim.colorHex;
-    }
-  }
 
   // Compute aim point and path, draw on 2D canvas immediately
   const launchPos = getLobLaunchPos();
@@ -2077,12 +2149,18 @@ function updateTrajImmediate() {
     if(dtr < bestDist){ bestDist=dtr; bestBlock=b; }
   });
 
+  // FREE AIM: only snap the preview to a block if the aim ray actually passes
+  // close enough to one. Otherwise project to a free point in space at cluster depth
+  // so the arc shows where the projectile will really go.
+  const SNAP_THRESHOLD = SP * 0.6; // ~half a block width
   const aimPoint3D = new THREE.Vector3();
-  if(bestBlock) {
+  if(bestBlock && bestDist < SNAP_THRESHOLD) {
     aimPoint3D.set(bestBlock.wx,bestBlock.wy,bestBlock.wz).applyQuaternion(pivot.quaternion).add(_pWorld);
   } else {
-    const fb = blocks.find(b=>b.alive);
-    if(fb) aimPoint3D.set(fb.wx,fb.wy,fb.wz).applyQuaternion(pivot.quaternion).add(_pWorld);
+    // Project along aim ray to the cluster's Z plane so the arc shows the real target
+    const targetZ = _pWorld.z;
+    const tParam = (targetZ - camPos2.z) / _aimRayDir2.z;
+    aimPoint3D.copy(camPos2).addScaledVector(_aimRayDir2, tParam);
   }
 
   const points = simulateLobPath(launchPos, aimPoint3D);
@@ -2093,29 +2171,63 @@ function updateTrajImmediate() {
 
 // Fire lob on click/tap on canvas when lob mode is on
 function fireLob(clientX, clientY) {
-  // Always clear trajectory and reset hold state when fireLob is called
+  // Always clear trajectory and reset hold state
   lobHolding = false;
   clearTraj2D();
   lobSnappedBlock = null;
   if(!lobMode || proj.active || levelLocked) return;
+
+  // Projectile colour comes from NEXT (currentBlock), NOT the aimed block.
+  const projBlock = {
+    colorIdx: currentBlock.colorIdx,
+    color:    currentBlock.color,
+    colorHex: currentBlock.colorHex,
+    shape:    currentBlock.shape
+  };
+
+  // Raycast to find if aim hits a block on the cluster.
   const _m=[], _b={};
   mouse2d.x=(clientX/window.innerWidth)*2-1;
   mouse2d.y=-(clientY/window.innerHeight)*2+1;
   raycaster.setFromCamera(mouse2d,camera);
   blocks.filter(b=>b.alive).forEach(b=>{ b.mesh.traverse(c=>{ if(c.isMesh&&c.userData.isMainMesh){_m.push(c);_b[c.uuid]=b;} }); });
   const _h=raycaster.intersectObjects(_m);
-  if(!_h.length) return;
-  const target=_b[_h[0].object.uuid]; if(!target) return;
   clearTrajDots();
   clearTraj2D();
-  // NEW: projectile color matches the targeted block. Every shot is a guaranteed match.
-  const projBlock = {
-    colorIdx: target.colorIdx,
-    color:    target.color,
-    colorHex: target.colorHex,
-    shape:    target.shape
-  };
-  launchProjectile(target, clientX, clientY, projBlock, 0, _h[0].point.clone(), true);
+
+  let target = null;
+  let exactHit = null;
+  if(_h.length) {
+    target = _b[_h[0].object.uuid] || null;
+    exactHit = _h[0].point.clone();
+  }
+  // If no block hit, synthesize a "phantom target" in world space along the aim ray.
+  // This lets us fire free — the projectile flies past the cluster into empty space.
+  if(!target) {
+    const tapNDC = new THREE.Vector3(
+      (clientX / window.innerWidth) * 2 - 1,
+     -(clientY / window.innerHeight) * 2 + 1,
+      0.5
+    );
+    tapNDC.unproject(camera);
+    const camPos = camera.position.clone();
+    const dir = tapNDC.sub(camPos).normalize();
+    // Shoot toward z=0 plane (cluster centre z) at the aimed screen point
+    const targetZ = 0;
+    const tParam = (targetZ - camPos.z) / dir.z;
+    const phantomPos = camPos.clone().addScaledVector(dir, tParam);
+    exactHit = phantomPos;
+    // Build a fake "target" object that launchProjectile can use for world position only.
+    target = {
+      alive: true,
+      colorIdx: -1, // sentinel = no match possible
+      color: projBlock.color,
+      colorHex: projBlock.colorHex,
+      shape: projBlock.shape,
+      mesh: { getWorldPosition: (v) => v.copy(phantomPos) }
+    };
+  }
+  launchProjectile(target, clientX, clientY, projBlock, 0, exactHit, true);
 }
 threeCanvas.addEventListener('click',    e=>{ fireLob(e.clientX, e.clientY); });
 threeCanvas.addEventListener('touchend', e=>{ if(lobMode){ e.preventDefault(); const t=e.changedTouches[0]; fireLob(t.clientX,t.clientY); } }, {passive:false});
@@ -2149,18 +2261,13 @@ function startHold(clientX, clientY) {
   if(proj.active || levelLocked) return;
   if(lobMode) {
     // Freeze the current block at press time — this is what will be fired
-    // NEW: projectile color comes from the block under the cursor at press time.
-    // If not aiming at a block, fall back to a random color.
-    const _aimed = getBlockAt(clientX, clientY);
-    if(_aimed) {
-      lobSnappedBlock = {
-        colorIdx: _aimed.colorIdx, color: _aimed.color,
-        colorHex: _aimed.colorHex, shape: _aimed.shape
-      };
-    } else {
-      const _r = rndBlock();
-      lobSnappedBlock = { colorIdx: _r.colorIdx, color: _r.color, colorHex: _r.colorHex, shape: _r.shape };
-    }
+    // Projectile colour comes from NEXT (currentBlock). Aim is free — no snap to block.
+    lobSnappedBlock = {
+      colorIdx: currentBlock.colorIdx,
+      color:    currentBlock.color,
+      colorHex: currentBlock.colorHex,
+      shape:    currentBlock.shape
+    };
     const _dbg = document.getElementById('fire-debug-swatch');
     if(_dbg) _dbg.style.background = lobSnappedBlock.colorHex;
     lobHolding = true;
@@ -3029,16 +3136,19 @@ window.restartLevel1 = function() {
     _cartDropping.forEach(d => { if(d.mesh && d.mesh.parent) d.mesh.parent.remove(d.mesh); });
     _cartDropping.length = 0;
   }
-  // Empty and reset all carts (keep the 4 cart slots, just wipe their contents)
+  // Empty and reset all carts (both active + queue rows)
   if(typeof carts !== 'undefined' && carts.length) {
     carts.forEach((cart, idx) => {
-      // Remove any child blocks parented to the cart group
-      while(cart.group.children.length) {
-        const child = cart.group.children[0];
-        cart.group.remove(child);
-      }
-      // Re-add the cart's own visual walls by recreating it. Easiest: replaceCart.
+      while(cart.group.children.length) cart.group.remove(cart.group.children[0]);
       if(typeof replaceCart === 'function') replaceCart(cart, idx);
+    });
+  }
+  if(typeof queueCarts !== 'undefined' && queueCarts.length) {
+    queueCarts.forEach((cart, idx) => {
+      while(cart.group.children.length) cart.group.remove(cart.group.children[0]);
+      if(typeof replaceCart === 'function') replaceCart(cart, idx);
+      // After replaceCart positioned it, re-position to queue row
+      if(typeof positionCart === 'function') positionCart(cart, idx, 'queue');
     });
   }
   // Reset cart counter
@@ -4032,13 +4142,16 @@ animate();
     if(typeof funnelGroup !== 'undefined' && funnelGroup) funnelGroup.position.y = offsets.funnel;
     // Belt group
     if(typeof beltGroup !== 'undefined' && beltGroup) beltGroup.position.y = offsets.belt;
-    // Carts — each cart group needs updating; we store the base y the first time
-    if(typeof carts !== 'undefined' && carts.length) {
-      for(const cart of carts) {
+    // Carts — move BOTH active and queue rows by the same offset.
+    const _moveCartArr = (arr) => {
+      if(!arr || !arr.length) return;
+      for(const cart of arr) {
         if(cart._baseY === undefined) cart._baseY = cart.group.position.y;
         cart.group.position.y = cart._baseY + offsets.carts;
       }
-    }
+    };
+    if(typeof carts !== 'undefined') _moveCartArr(carts);
+    if(typeof queueCarts !== 'undefined') _moveCartArr(queueCarts);
     // Action bar — CSS top
     const sui = document.getElementById('shooter-ui');
     if(sui) sui.style.top = (ACTION_START_TOP + actionOffsetPx) + 'px';
