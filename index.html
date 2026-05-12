@@ -861,6 +861,35 @@ renderer.shadowMap.enabled = false;
 renderer.toneMapping = THREE.NoToneMapping;
 
 const scene = new THREE.Scene();
+
+// === Bloom post-processing for glow effect (visual polish) ===
+let composer = null;
+let bloomPass = null;
+function initBloom() {
+  try {
+    if(!THREE.EffectComposer || !THREE.UnrealBloomPass || !THREE.RenderPass) return false;
+    composer = new THREE.EffectComposer(renderer);
+    composer.setSize(window.innerWidth, window.innerHeight);
+    const renderPass = new THREE.RenderPass(scene, camera);
+    composer.addPass(renderPass);
+    bloomPass = new THREE.UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      0.45,  // strength
+      0.4,   // radius
+      0.85   // threshold
+    );
+    composer.addPass(bloomPass);
+    return true;
+  } catch(err) {
+    console.warn('Bloom unavailable:', err);
+    composer = null;
+    return false;
+  }
+}
+window.addEventListener('resize', () => {
+  if(composer) composer.setSize(window.innerWidth, window.innerHeight);
+  if(bloomPass) bloomPass.resolution.set(window.innerWidth, window.innerHeight);
+});
 // Gradient sky via a large sphere
 // ── Space background — Points-based star field ───────────────────────────────
 // Deep space background color
@@ -979,6 +1008,9 @@ function updateCamera() {
   const elRad = camElevation * Math.PI / 180;
   camera.position.set(0, Math.sin(elRad) * CAM_RADIUS, Math.cos(elRad) * CAM_RADIUS);
   camera.lookAt(0, 0, 0);
+
+// Initialise bloom composer now that camera is ready
+initBloom();
 }
 updateCamera();
 
@@ -1045,6 +1077,29 @@ const funnelGroup = new THREE.Group();
   funnelGroup.add(rim);
 }
 scene.add(funnelGroup);
+
+// === Soft floor shadow under the cluster (visual polish, no gameplay effect) ===
+{
+  // Procedurally generate a radial-gradient texture for the shadow blob
+  const shadowCanvas = document.createElement('canvas');
+  shadowCanvas.width = 256; shadowCanvas.height = 256;
+  const sctx = shadowCanvas.getContext('2d');
+  const grad = sctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  grad.addColorStop(0,   'rgba(40, 60, 90, 0.35)');
+  grad.addColorStop(0.6, 'rgba(40, 60, 90, 0.12)');
+  grad.addColorStop(1,   'rgba(40, 60, 90, 0.0)');
+  sctx.fillStyle = grad;
+  sctx.fillRect(0, 0, 256, 256);
+  const shadowTex = new THREE.CanvasTexture(shadowCanvas);
+  const shadowMat = new THREE.MeshBasicMaterial({
+    map: shadowTex, transparent: true, depthWrite: false
+  });
+  const shadowPlane = new THREE.Mesh(new THREE.PlaneGeometry(5, 5), shadowMat);
+  shadowPlane.rotation.x = -Math.PI / 2;
+  shadowPlane.position.set(0, -0.75, 0);  // just below the cluster
+  shadowPlane.renderOrder = -1; // render before cluster
+  scene.add(shadowPlane);
+}
 
 // ── Conveyor oval loop ─────────────────────────────────────────────────────
 // Layout in world coordinates:
@@ -1208,18 +1263,36 @@ function makeCart(colorIdx) {
 }
 
 function pickFreshColor(excludeCarts) {
-  // Pick a colour not already used by any of the excluded carts, preferring alive cluster colours.
-  // If no explicit exclusion list is passed, default to excluding ALL visible carts (active + queue).
+  // Pick a colour not already used by any of the excluded carts.
+  // Preference order:
+  //   1) An ALIVE cluster colour not in use by any visible cart  (best — playable)
+  //   2) ANY colour not in use by any visible cart                (avoid duplicates)
+  //   3) Random alive colour                                       (last resort)
+  //   4) Any of the 6 colours                                      (very last resort)
   if(!excludeCarts) {
     excludeCarts = [].concat(carts || [], queueCarts || []);
   }
   const used = new Set(excludeCarts.map(c => c.colorIdx));
   const aliveColours = new Set();
-  blocks.forEach(b => { if(b.alive) aliveColours.add(b.colorIdx); });
-  const all = aliveColours.size > 0 ? Array.from(aliveColours) : [0,1,2,3,4,5];
-  const avail = all.filter(ci => !used.has(ci));
-  const pool = avail.length > 0 ? avail : all;
-  return pool[Math.floor(Math.random() * pool.length)];
+  if(typeof blocks !== 'undefined') {
+    blocks.forEach(b => { if(b.alive) aliveColours.add(b.colorIdx); });
+  }
+  const allColours = [0,1,2,3,4,5];
+
+  // Tier 1: alive + unused
+  const tier1 = allColours.filter(ci => aliveColours.has(ci) && !used.has(ci));
+  if(tier1.length > 0) return tier1[Math.floor(Math.random() * tier1.length)];
+
+  // Tier 2: ANY unused (even if not currently in cluster — still better than a duplicate)
+  const tier2 = allColours.filter(ci => !used.has(ci));
+  if(tier2.length > 0) return tier2[Math.floor(Math.random() * tier2.length)];
+
+  // Tier 3: random alive (will produce a duplicate, but at least playable)
+  const aliveArr = Array.from(aliveColours);
+  if(aliveArr.length > 0) return aliveArr[Math.floor(Math.random() * aliveArr.length)];
+
+  // Tier 4: anything
+  return allColours[Math.floor(Math.random() * allColours.length)];
 }
 
 function positionCart(cart, slotIndex, row) {
@@ -1234,15 +1307,27 @@ function positionCart(cart, slotIndex, row) {
 
 function spawnInitialCarts() {
   // Populate the active (top) row first, then the queue (bottom) row.
-  // pickFreshColor() auto-excludes both rows so all 4 carts get unique colours.
+  // On Level 1 (tutorial), force the 2 active carts to match the current
+  // and next projectile colours so the player can fill them with their very
+  // first two shots — guaranteed forward progress for onboarding.
+  const forceColors = [];
+  if(typeof currentLevel !== 'undefined' && currentLevel === 1) {
+    if(typeof currentBlock !== 'undefined' && currentBlock && currentBlock.colorIdx != null) {
+      forceColors.push(currentBlock.colorIdx);
+    }
+    if(typeof nextBlock !== 'undefined' && nextBlock && nextBlock.colorIdx != null
+       && nextBlock.colorIdx !== forceColors[0]) {
+      forceColors.push(nextBlock.colorIdx);
+    }
+  }
   for(let i = 0; i < CART_COUNT; i++) {
-    const ci = pickFreshColor();
+    const ci = (i < forceColors.length) ? forceColors[i] : pickFreshColor();
     const cart = makeCart(ci);
     positionCart(cart, i, 'top');
     carts.push(cart);
   }
   for(let i = 0; i < CART_COUNT; i++) {
-    const ci = pickFreshColor();
+    const ci = pickFreshColor(); // queue still picks freshly, excludes existing carts
     const qcart = makeCart(ci);
     positionCart(qcart, i, 'queue');
     queueCarts.push(qcart);
@@ -1614,13 +1699,13 @@ const SHAPES    = ['cube'];
 let blocks=[], coreMesh=null, coreExposed=false, score=0;
 let currentGoal = null;
 let goalStars = 0;
-let currentLevel=1, tokens=0, levelLocked=false;
+let currentLevel=1, tokens=0, levelLocked=false; window.currentLevel = currentLevel;
 let shotsLeft=0, lives=Infinity;
 
 // Shot budgets per level — generous enough to be beatable, tight enough to matter
 // Formula: roughly (total blocks / avg group size of 3) + buffer
 const LEVEL_SHOTS = [
-  6,   // Level 1: tutorial - 5 match groups + 1 buffer
+  10,  // Level 1: tutorial - 8 match groups + 2 buffer
   18,  // Level 2: Rocket    (34 blocks, ~12 groups, +6 buffer)
   20,  // Level 3: Tree      (36 blocks, ~12 groups, +8 buffer)
   22,  // Level 4: Castle    (39 blocks, ~13 groups, +9 buffer)
@@ -2148,15 +2233,18 @@ function makeBlockMesh(shape, color) {
   const c = new THREE.Color(color);
   const group = new THREE.Group();
 
-  // Dark outline — slightly larger, rendered first (backface trick via scale)
+  // Subtle darker outline — uses a darker tint of the block's OWN colour
+  // instead of hard black. Gives depth without the cartoon coloring-book feel.
+  const outlineColor = c.clone().multiplyScalar(0.55);
   const outlineMat = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(0x000000), side: THREE.BackSide
+    color: outlineColor, side: THREE.BackSide
   });
   const outline = new THREE.Mesh(getOutlineGeo(shape), outlineMat);
   group.add(outline);
 
-  // Main colored face
-  const mat = new THREE.MeshBasicMaterial({ color: c });
+  // Main colored face — switch from MeshBasicMaterial to MeshLambertMaterial so it
+  // picks up directional lighting (subtle face brightness differences = depth)
+  const mat = new THREE.MeshLambertMaterial({ color: c });
   const main = new THREE.Mesh(getCachedGeo(shape), mat);
   group.add(main);
 
@@ -2654,26 +2742,26 @@ updateUI();
 // ci shortcuts: 0=red 1=blue 2=green 3=orange 4=purple 5=white
 const LEVELS = [
   { name:'House', blocks:[
-    {x: -1, y:  1, z: -1, s:'cube', ci:0},
-    {x:  0, y:  1, z: -1, s:'cube', ci:0},
-    {x: -1, y:  1, z:  0, s:'cube', ci:0},
-    {x:  0, y:  1, z:  0, s:'cube', ci:0},
-    {x:  1, y:  1, z:  0, s:'cube', ci:0},
-    {x: -1, y: -1, z:  1, s:'cube', ci:1},
-    {x:  0, y: -1, z:  1, s:'cube', ci:1},
-    {x: -1, y:  0, z:  1, s:'cube', ci:1},
-    {x:  0, y:  0, z:  1, s:'cube', ci:1},
+    {x: -1, y:  1, z:  1, s:'cube', ci:0},
+    {x:  0, y:  1, z:  1, s:'cube', ci:0},
+    {x: -1, y:  0, z:  1, s:'cube', ci:0},
+    {x:  0, y:  0, z:  1, s:'cube', ci:0},
+    {x:  1, y:  1, z: -1, s:'cube', ci:1},
+    {x:  1, y:  1, z:  0, s:'cube', ci:1},
+    {x:  1, y:  1, z:  1, s:'cube', ci:1},
     {x:  1, y: -1, z: -1, s:'cube', ci:2},
-    {x:  1, y:  0, z: -1, s:'cube', ci:2},
-    {x:  1, y:  1, z: -1, s:'cube', ci:2},
     {x:  1, y: -1, z:  0, s:'cube', ci:2},
+    {x:  1, y:  0, z: -1, s:'cube', ci:2},
+    {x:  1, y:  0, z:  0, s:'cube', ci:2},
     {x: -1, y: -1, z: -1, s:'cube', ci:3},
     {x:  0, y: -1, z: -1, s:'cube', ci:3},
-    {x: -1, y:  0, z: -1, s:'cube', ci:3},
-    {x:  0, y:  0, z: -1, s:'cube', ci:3},
-    {x:  1, y: -1, z:  1, s:'cube', ci:4},
-    {x:  1, y:  0, z:  1, s:'cube', ci:4},
-    {x:  1, y:  1, z:  1, s:'cube', ci:4},
+    {x: -1, y:  1, z: -1, s:'cube', ci:4},
+    {x: -1, y: -1, z:  0, s:'cube', ci:5},
+    {x: -1, y:  0, z:  0, s:'cube', ci:5},
+    {x: -1, y:  0, z: -1, s:'cube', ci:5},
+    {x:  0, y:  1, z: -1, s:'cube', ci:0},
+    {x:  1, y: -1, z:  1, s:'cube', ci:1},
+    {x:  0, y: -1, z:  1, s:'cube', ci:1},
   ]},
   { name:'Truck', blocks:[
     {x: -3, y: -3, z:  0, s:'cube', ci:2},
@@ -2924,6 +3012,10 @@ const CHARGED_DAMPING = 0.9995; // nearly zero damping after charged hit
 let MAX_ANG_SPEED   = 6.0;
 let TORQUE_MATCH    = 3.0;  // impact strength on color match
 let TORQUE_MISS     = 0.5;  // impact strength on mismatch
+// Toggle: when false, projectile passes through non-matching blocks (only matches stop it)
+// Mirror COLLISION_ON to window so the toggle button (in a separate IIFE) can read/write it.
+window.COLLISION_ON = false; // default: collision OFF (more forgiving)
+Object.defineProperty(window, 'COLLISION_ON_VIEW', { get: () => window.COLLISION_ON });
 let chargedHitTimer = 0; // seconds remaining of low-damping mode
 
 function applyImpactTorque(hitWorldPos, incomingDir, impactStrength) {
@@ -3224,6 +3316,24 @@ function playOutOfShots() {
 }
 
 // Full restart: wipes funnel blocks, belt blocks, carts, and cluster state, then rebuilds level 1.
+window.loadLevel = function(n) {
+  // Clamp to 1-10
+  n = Math.max(1, Math.min(10, parseInt(n, 10) || 1));
+  // Reset flags + counters + state, then call the existing full-reset code
+  // by temporarily setting currentLevel to n.
+  if(typeof currentLevel !== 'undefined') { currentLevel = n; window.currentLevel = n; }
+  if(typeof _levelFailed !== 'undefined') _levelFailed = false;
+  if(typeof coreExposed !== 'undefined') coreExposed = false;
+  if(typeof levelLocked !== 'undefined') levelLocked = false;
+  // Hide any open overlay
+  const out = document.getElementById('out-overlay');
+  if(out) out.classList.remove('show');
+  const lv = document.getElementById('level-overlay');
+  if(lv) lv.classList.remove('show');
+  // Run the full reset (it calls buildIsland which uses currentLevel)
+  window.restartLevel1();
+};
+
 window.restartLevel1 = function() {
   // Cancel any in-flight projectile
   if(typeof proj !== 'undefined') {
@@ -3292,11 +3402,58 @@ function retryLevel() {
   // Use a life (unlimited for now — just reset)
   document.getElementById('out-overlay').classList.remove('show');
   levelLocked = false;
-  // Restore shots and rebuild same level
+  _levelFailed = false;
+  coreExposed = false;
+  // Restore shots
   shotsLeft = getShotBudget(currentLevel);
   updateShotsUI();
-  // Clear falling blocks
-  fallingBlocks.forEach(f=>pivot.remove(f.mesh)); fallingBlocks=[];
+
+  // Cancel any in-flight projectile
+  if(typeof proj !== 'undefined') {
+    proj.active = false;
+    if(proj.mesh && proj.mesh.parent) proj.mesh.parent.remove(proj.mesh);
+  }
+
+  // Clear all falling/in-flight blocks
+  fallingBlocks.forEach(f=>{ if(f.mesh && f.mesh.parent) f.mesh.parent.remove(f.mesh); });
+  fallingBlocks=[];
+  if(typeof funnelBlocks !== 'undefined') {
+    funnelBlocks.forEach(f=>{ if(f.mesh && f.mesh.parent) f.mesh.parent.remove(f.mesh); });
+    funnelBlocks.length = 0;
+  }
+  if(typeof beltBlocks !== 'undefined') {
+    beltBlocks.forEach(b=>{ if(b.mesh && b.mesh.parent) b.mesh.parent.remove(b.mesh); });
+    beltBlocks.length = 0;
+  }
+  if(typeof _cartDropping !== 'undefined') {
+    _cartDropping.forEach(d=>{ if(d.mesh && d.mesh.parent) d.mesh.parent.remove(d.mesh); });
+    _cartDropping.length = 0;
+  }
+
+  // Reset all carts (top + queue)
+  if(typeof carts !== 'undefined' && carts.length) {
+    carts.forEach((cart, idx) => {
+      while(cart.group.children.length) cart.group.remove(cart.group.children[0]);
+      if(typeof replaceCart === 'function') replaceCart(cart, idx);
+    });
+  }
+  if(typeof queueCarts !== 'undefined' && queueCarts.length) {
+    queueCarts.forEach((cart, idx) => {
+      while(cart.group.children.length) cart.group.remove(cart.group.children[0]);
+      if(typeof replaceCart === 'function') replaceCart(cart, idx);
+      if(typeof positionCart === 'function') positionCart(cart, idx, 'queue');
+    });
+  }
+
+  // Reset elements collected counter
+  if(typeof cartCount !== 'undefined') {
+    cartCount = 0;
+    const ccVal = document.getElementById('cart-counter-val');
+    if(ccVal) ccVal.textContent = '0';
+    const ecVal = document.getElementById('elements-collected-val');
+    if(ecVal) ecVal.textContent = '0';
+  }
+
   buildIsland();
 }
 
@@ -3307,6 +3464,101 @@ document.getElementById('out-btn').addEventListener('touchend', e=>{ e.preventDe
 // Anti-softlock: if the cluster has alive blocks AND none of those colours match
 // any of the ACTIVE (top-row) carts, the player can't make progress. Show level-failed.
 let _levelFailed = false;
+// Re-assign cart colours to give the player a chance instead of failing.
+// Picks unique colours from the alive cluster pool, leaves any block-dropping
+// carts alone, and shows a brief 'RESHUFFLE!' banner.
+function attemptReshuffle(aliveClusterColours) {
+  if(!aliveClusterColours || aliveClusterColours.size === 0) return;
+  const alive = Array.from(aliveClusterColours);
+
+  // Build a list of all 4 cart slots (top+queue) that need new colours
+  const allSlots = [];
+  carts.forEach((cart, idx) => allSlots.push({ cart, idx, row: 'top' }));
+  if(typeof queueCarts !== 'undefined') {
+    queueCarts.forEach((cart, idx) => allSlots.push({ cart, idx, row: 'queue' }));
+  }
+
+  // Pick a unique colour for each slot, preferring alive cluster colours.
+  // If alive < #slots, reuse colours but spread them so each top cart has
+  // at least ONE matching cluster colour.
+  const pool = alive.slice();
+  // shuffle pool
+  for(let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i+1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  let pi = 0;
+  for(const s of allSlots) {
+    const newCi = pool[pi % pool.length];
+    pi++;
+    // Replace the cart's visuals: remove old children, build fresh
+    while(s.cart.group.children.length) s.cart.group.remove(s.cart.group.children[0]);
+    // Rebuild the cart's mesh via makeCart for the new colour
+    const fresh = makeCart(newCi);
+    // Adopt fresh's children into the existing group (so position is preserved)
+    while(fresh.group.children.length) {
+      const child = fresh.group.children[0];
+      fresh.group.remove(child);
+      s.cart.group.add(child);
+    }
+    scene.remove(fresh.group);
+    s.cart.colorIdx    = newCi;
+    s.cart.colorHex    = COLORS[newCi];
+    s.cart.slots       = [null, null, null];
+    s.cart.landedCount = 0;
+    s.cart.completing  = false;
+  }
+
+  // Clear belt + funnel of any blocks whose colour now has no destination
+  const destColours = new Set();
+  carts.forEach(c => destColours.add(c.colorIdx));
+  if(typeof queueCarts !== 'undefined') queueCarts.forEach(c => destColours.add(c.colorIdx));
+  function cullList(list) {
+    if(!list) return;
+    for(let i = list.length - 1; i >= 0; i--) {
+      const b = list[i];
+      if(!destColours.has(b.colorIdx)) {
+        if(b.mesh && b.mesh.parent) b.mesh.parent.remove(b.mesh);
+        list.splice(i, 1);
+      }
+    }
+  }
+  cullList(typeof funnelBlocks !== 'undefined' ? funnelBlocks : null);
+  cullList(typeof beltBlocks !== 'undefined' ? beltBlocks : null);
+
+  // Show a brief 'RESHUFFLE!' banner
+  showReshuffleBanner();
+
+  // Clear flags so the check can fire again later if needed
+  _levelFailed = false;
+}
+
+function showReshuffleBanner() {
+  let banner = document.getElementById('reshuffle-banner');
+  if(!banner) {
+    banner = document.createElement('div');
+    banner.id = 'reshuffle-banner';
+    banner.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.5);'+
+      'background:rgba(255,255,255,0.96);border:3px solid #6fb6d4;border-radius:18px;'+
+      'padding:18px 32px;font-family:-apple-system,sans-serif;font-size:24px;font-weight:900;'+
+      'letter-spacing:2px;color:#1f3a52;box-shadow:0 8px 30px rgba(60,110,160,0.3);'+
+      'z-index:200;pointer-events:none;opacity:0;transition:opacity 0.3s,transform 0.4s cubic-bezier(0.25,1.6,0.5,1);'+
+      'text-align:center;';
+    document.body.appendChild(banner);
+  }
+  banner.innerHTML = '🧬 RESHUFFLE!<br><span style="font-size:13px;font-weight:600;letter-spacing:0.5px;color:#345066;">New cart colors</span>';
+  // animate in
+  requestAnimationFrame(() => {
+    banner.style.opacity = '1';
+    banner.style.transform = 'translate(-50%,-50%) scale(1)';
+  });
+  // hide after 1.5s
+  setTimeout(() => {
+    banner.style.opacity = '0';
+    banner.style.transform = 'translate(-50%,-50%) scale(0.7)';
+  }, 1500);
+}
+
 function checkLevelFailed() {
   if(_levelFailed || levelLocked) return;
   if(typeof carts === 'undefined' || !carts.length) return;
@@ -3345,61 +3597,11 @@ function checkLevelFailed() {
   // a way for the queue to ever promote, that's still hope. But promotion requires an
   // active fill, which requires the chain we just ruled out. So: failed.
 
-  // === DIAGNOSTIC LOGGING ===
-  const colorNames = ['red','blue','green','orange','purple','white'];
-  const _name = ci => colorNames[ci] || ('?'+ci);
-  const _aliveCluster = [...aliveClusterColours].map(_name).sort();
-  const _activeCarts  = carts.map(c => _name(c.colorIdx));
-  const _queueCarts   = (typeof queueCarts !== 'undefined') ? queueCarts.map(c => _name(c.colorIdx)) : [];
-  const _beltColors   = (typeof beltBlocks !== 'undefined') ? beltBlocks.map(b => _name(b.colorIdx)) : [];
-  const _funnelColors = (typeof funnelBlocks !== 'undefined') ? funnelBlocks.map(b => _name(b.colorIdx)) : [];
-  const _dropColors   = (typeof _cartDropping !== 'undefined') ? _cartDropping.map(d => d.cart ? _name(d.cart.colorIdx) : '?') : [];
-
-  const diag = {
-    cluster_alive_colors: _aliveCluster,
-    active_carts: _activeCarts,
-    queue_carts: _queueCarts,
-    belt_blocks: _beltColors,
-    funnel_blocks: _funnelColors,
-    cart_dropping: _dropColors
-  };
-  console.log('LEVEL FAILED diagnostic:', diag);
-
-  // Also display on the failure overlay so it's visible without console
-  setTimeout(() => {
-    const sub2 = document.querySelector('#out-overlay .out-sub');
-    if(sub2) {
-      const lines = [
-        'Cluster has: ' + (_aliveCluster.join(', ') || 'nothing'),
-        'Top carts: '   + (_activeCarts.join(', ') || 'none'),
-        'Queue carts: ' + (_queueCarts.join(', ') || 'none'),
-        'On belt: '     + (_beltColors.length ? _beltColors.join(', ') : 'empty'),
-        'In funnel: '   + (_funnelColors.length ? _funnelColors.join(', ') : 'empty')
-      ];
-      sub2.innerHTML = lines.join('<br>');
-      sub2.style.fontSize = '12px';
-      sub2.style.lineHeight = '1.6';
-      sub2.style.fontFamily = 'monospace';
-      sub2.style.textAlign = 'left';
-      sub2.style.padding = '0 30px';
-    }
-  }, 50);
-
-  // Failed!
-  _levelFailed = true;
-  levelLocked = true;
-  setTimeout(() => {
-    const t = document.getElementById('out-overlay');
-    if(t) {
-      const title = t.querySelector('.out-title');
-      const sub = t.querySelector('.out-sub');
-      const lives = t.querySelector('.out-lives');
-      if(title) title.textContent = 'LEVEL FAILED';
-      // sub is set by the diagnostic block above
-      if(lives) lives.textContent = '🧪';
-      t.classList.add('show');
-    }
-  }, 600);
+  // === Try a RESHUFFLE before giving up ===
+  // Re-roll active and queue cart colours to match what's alive in the cluster.
+  // Only fail for real if even reshuffle can't help (i.e. cluster is genuinely empty).
+  if(aliveClusterColours.size === 0) return;
+  attemptReshuffle(aliveClusterColours);
 }
 
 function checkCoreExposure() {
@@ -3412,9 +3614,67 @@ function checkCoreExposure() {
     const msg=document.getElementById('core-msg');
     msg.style.opacity='1'; msg.style.transform='translate(-50%,-50%) scale(1)';
     setTimeout(()=>{ msg.style.opacity='0'; msg.style.transform='translate(-50%,-50%) scale(0)'; }, 1400);
-    // Then show level complete overlay
-    setTimeout(showLevelComplete, 1800);
+    // Wait until ALL in-flight blocks have been resolved before celebrating:
+    //  - funnelBlocks (cubes still in the funnel)
+    //  - beltBlocks   (cubes riding the belt)
+    //  - _cartDropping (cubes mid-drop into a cart)
+    waitForPipelineClearAndComplete();
   }
+}
+
+// Poll until the funnel, belt, and dropping queues are all empty, then show
+// the level-complete overlay. Times out after 30s as a safety net.
+function waitForPipelineClearAndComplete() {
+  const startedAt = performance.now();
+  const SAFETY_TIMEOUT_MS = 30000;
+  function poll() {
+    // After the cluster is cleared, no new matched blocks will arrive in the
+    // funnel/belt. So a "live" block is only one that can be delivered *right now*:
+    // its colour must match a currently ACTIVE (top-row) cart, AND that cart must
+    // have an empty slot. Queue cart colours don't count — a queue cart can only
+    // promote when an active cart finishes, and after the cluster is cleared the
+    // only way an active cart finishes is via a deliverable belt/funnel block.
+    // So if no current active cart is reachable by any block, nothing more can happen.
+
+    // Build a set of colours that can still result in deliveries:
+    //  - any active cart's colour, even if "completing" (blocks heading to it
+    //    will fall into the queue cart that promotes in its place IF same colour)
+    //  - any QUEUE cart's colour (if its predecessor in the column finishes,
+    //    this becomes active and same-coloured blocks already in flight will
+    //    complete it)
+    //  - colours of blocks already locked in via _cartDropping (their cart
+    //    reservation is guaranteed to land)
+    // The check is: is there ANY block in the system with a colour that can
+    // still reach a destination? If yes, wait. If no, celebrate.
+    const playableColours = new Set();
+    if(typeof carts !== 'undefined') {
+      carts.forEach(c => playableColours.add(c.colorIdx));
+    }
+    if(typeof queueCarts !== 'undefined') {
+      queueCarts.forEach(c => playableColours.add(c.colorIdx));
+    }
+
+    let live = 0;
+    if(typeof funnelBlocks !== 'undefined') {
+      funnelBlocks.forEach(b => { if(playableColours.has(b.colorIdx)) live++; });
+    }
+    if(typeof beltBlocks !== 'undefined') {
+      beltBlocks.forEach(b => { if(playableColours.has(b.colorIdx)) live++; });
+    }
+    if(typeof _cartDropping !== 'undefined') live += _cartDropping.length;
+
+    if(live === 0) {
+      showLevelComplete();
+      return;
+    }
+    if(performance.now() - startedAt > SAFETY_TIMEOUT_MS) {
+      console.warn('Level complete timeout — celebrating anyway');
+      showLevelComplete();
+      return;
+    }
+    setTimeout(poll, 200);
+  }
+  setTimeout(poll, 1400); // initial wait for the "core exposed" flash
 }
 
 function showLevelComplete() {
@@ -3462,11 +3722,58 @@ function playCelebration() {
 
 function startNextLevel() {
   currentLevel++;
+  window.currentLevel = currentLevel;
   document.getElementById('level-badge').textContent='Level '+currentLevel;
   document.getElementById('level-overlay').classList.remove('show');
   levelLocked=false;
-  fallingBlocks.forEach(f=>pivot.remove(f.mesh));
+  _levelFailed = false;
+
+  // Clear all falling blocks (legacy pivot-local + world-space)
+  fallingBlocks.forEach(f=>{ if(f.mesh && f.mesh.parent) f.mesh.parent.remove(f.mesh); });
   fallingBlocks=[];
+
+  // Clear funnel blocks
+  if(typeof funnelBlocks !== 'undefined') {
+    funnelBlocks.forEach(f=>{ if(f.mesh && f.mesh.parent) f.mesh.parent.remove(f.mesh); });
+    funnelBlocks.length = 0;
+  }
+
+  // Clear belt blocks
+  if(typeof beltBlocks !== 'undefined') {
+    beltBlocks.forEach(b=>{ if(b.mesh && b.mesh.parent) b.mesh.parent.remove(b.mesh); });
+    beltBlocks.length = 0;
+  }
+
+  // Clear cart-dropping animations
+  if(typeof _cartDropping !== 'undefined') {
+    _cartDropping.forEach(d=>{ if(d.mesh && d.mesh.parent) d.mesh.parent.remove(d.mesh); });
+    _cartDropping.length = 0;
+  }
+
+  // Reset all carts (top + queue rows) to fresh empty state
+  if(typeof carts !== 'undefined' && carts.length) {
+    carts.forEach((cart, idx) => {
+      while(cart.group.children.length) cart.group.remove(cart.group.children[0]);
+      if(typeof replaceCart === 'function') replaceCart(cart, idx);
+    });
+  }
+  if(typeof queueCarts !== 'undefined' && queueCarts.length) {
+    queueCarts.forEach((cart, idx) => {
+      while(cart.group.children.length) cart.group.remove(cart.group.children[0]);
+      if(typeof replaceCart === 'function') replaceCart(cart, idx);
+      if(typeof positionCart === 'function') positionCart(cart, idx, 'queue');
+    });
+  }
+
+  // Reset elements collected counter
+  if(typeof cartCount !== 'undefined') {
+    cartCount = 0;
+    const ccVal = document.getElementById('cart-counter-val');
+    if(ccVal) ccVal.textContent = '0';
+    const ecVal = document.getElementById('elements-collected-val');
+    if(ecVal) ecVal.textContent = '0';
+  }
+
   buildIsland(); // buildIsland resets shotsLeft via getShotBudget
 }
 
@@ -3972,6 +4279,9 @@ function animate() {
     let hitBlock=null, hitDist=Infinity;
     for(const b of blocks) {
       if(!b.alive) continue;
+      // When collision is OFF, projectile only detects matching-colour blocks.
+      // Mismatches are invisible to the projectile and it passes through them.
+      if(!window.COLLISION_ON && (b.colorIdx !== proj.shotCI || b.shape !== proj.shotSh)) continue;
       const d=Math.hypot(projLocal.x-b.wx, projLocal.y-b.wy, projLocal.z-b.wz);
       const blockR=PROJ_R[b.shape]||0.44;
       if(d < projR+blockR*0.9 && d < hitDist) { hitDist=d; hitBlock=b; }
@@ -4247,7 +4557,7 @@ function animate() {
 
   // Animate space sky
   if(cacheFrame % 2 === 0) skyMat.uniforms.time.value += dt * 1.6; // update every other frame
-  renderer.render(scene,camera);
+  if(composer) composer.render(); else renderer.render(scene,camera);
 }
 animate();
 </script>
@@ -4415,7 +4725,62 @@ animate();
 })();
 </script>
 <!-- Debug: restart current level -->
-<button id="restart-btn" style="position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:100;background:rgba(255,255,255,0.95);border:1px solid #6fb6d4;color:#1f3a52;border-radius:8px;padding:8px 14px;font-family:-apple-system,sans-serif;font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(60,110,160,0.2);">↻ RESTART LEVEL 1</button>
+<!-- Top-center cluster: RESTART + COLLISION toggle -->
+<div style="position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:100;display:flex;gap:8px;align-items:center;">
+  <select id="level-select" style="background:rgba(255,255,255,0.95);border:1px solid #6fb6d4;color:#1f3a52;border-radius:8px;padding:8px 14px;font-family:-apple-system,sans-serif;font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(60,110,160,0.2);appearance:none;-webkit-appearance:none;padding-right:30px;background-image:url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' stroke='%231f3a52' stroke-width='1.5' fill='none' stroke-linecap='round'/></svg>\");background-repeat:no-repeat;background-position:right 10px center;"></select>
+<button id="restart-btn" style="display:none;">↻ RESTART LEVEL 1</button>
+  <button id="collision-btn" style="background:rgba(255,255,255,0.95);border:1px solid #6fb6d4;color:#1f3a52;border-radius:8px;padding:8px 14px;font-family:-apple-system,sans-serif;font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(60,110,160,0.2);">COLLISION: ON</button>
+</div>
+<script>
+(function(){
+  const btn = document.getElementById('collision-btn');
+  function render() {
+    btn.textContent = 'COLLISION: ' + (window.COLLISION_ON !== false ? 'ON' : 'OFF');
+    // Subtle visual differentiator when off
+    btn.style.background = (window.COLLISION_ON !== false) ? 'rgba(255,255,255,0.95)' : 'rgba(230,245,250,0.95)';
+  }
+  function toggle() {
+    window.COLLISION_ON = !(window.COLLISION_ON !== false);
+    render();
+  }
+  btn.addEventListener('click', toggle);
+  btn.addEventListener('touchend', e => { e.preventDefault(); toggle(); });
+  // Initial render after a tick so the global is defined
+  setTimeout(render, 50);
+})();
+</script>
+<script>
+(function(){
+  const sel = document.getElementById('level-select');
+  if(!sel) return;
+  // Populate options 1-10
+  for(let i = 1; i <= 10; i++) {
+    const opt = document.createElement('option');
+    opt.value = String(i);
+    opt.textContent = 'LEVEL ' + i;
+    sel.appendChild(opt);
+  }
+  function syncFromGame() {
+    if(typeof window.currentLevel === 'number') {
+      sel.value = String(Math.max(1, Math.min(10, window.currentLevel)));
+    }
+  }
+  // Initial sync after a tick
+  setTimeout(syncFromGame, 100);
+  // Periodically resync in case the game advances levels on its own
+  setInterval(syncFromGame, 1000);
+  // On change, jump to that level
+  sel.addEventListener('change', (e) => {
+    const n = parseInt(e.target.value, 10) || 1;
+    if(typeof window.loadLevel === 'function') {
+      window.loadLevel(n);
+    }
+    // Blur so iOS dismisses the picker
+    sel.blur();
+  });
+})();
+</script>
+
 <script>
 (function(){
   document.getElementById('restart-btn').addEventListener('click', ()=>{ if(window.restartLevel1) window.restartLevel1(); });
