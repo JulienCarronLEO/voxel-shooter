@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Voxel Shooter 3D</title>
+<title>Block Sort</title>
 <style>
 /* ── MATCH MECHANIC HIDDEN (temporarily while funnel/conveyor is developed) ── */
 #goal-ui, #goal-label, #goal-canvas, #goal-debug-label, #star-counter, #combo, #score, #core-msg, #charge-msg, #hint, #goal-celebration, #goal-celebration-star, #goal-celebration-text, #goal-celebration-sub, #fire-debug, #level-badge, #lives-ui { display: none !important; }
@@ -3950,6 +3950,9 @@ function launchProjectile(targetBlock, tapX, tapY, snap, power=0, exactHitPoint=
     const lobDist = actualLaunchPos.distanceTo(worldPos);
     proj.lobDuration = Math.max(0.8, lobDist / 10);
     proj.lobElapsed = 0;
+    // Store reference to real target block so the arc can track its world pos
+    // as the cluster rotates during flight. Phantom targets (colorIdx === -1) are excluded.
+    proj.lobTargetBlock = (targetBlock && targetBlock.alive && targetBlock.colorIdx !== -1) ? targetBlock : null;
   } else {
     proj.vx=dir.x*SPEED; proj.vy=dir.y*SPEED; proj.vz=dir.z*SPEED;
   }
@@ -5114,6 +5117,11 @@ function animate() {
     let nextPos;
     if(proj.useLob) {
       // ── Lob arc: parabola strictly in world Y (up then down) ─────────────
+      // Track target block's current world position so the arc follows the
+      // rotating cluster — prevents misses caused by cluster spin during flight.
+      if(proj.lobTargetBlock && proj.lobTargetBlock.alive && proj.lobTargetBlock.mesh) {
+        proj.lobTargetBlock.mesh.getWorldPosition(proj.lobEnd);
+      }
       proj.lobElapsed = (proj.lobElapsed||0) + dt;
       const t = Math.min(proj.lobElapsed / proj.lobDuration, 1.0);
       // Linear interpolation in XZ, parabolic in Y
@@ -5149,7 +5157,10 @@ function animate() {
       if(!window.COLLISION_ON && (b.colorIdx !== proj.shotCI || b.shape !== proj.shotSh)) continue;
       const d=Math.hypot(projLocal.x-b.wx, projLocal.y-b.wy, projLocal.z-b.wz);
       const blockR=PROJ_R[b.shape]||0.44;
-      if(d < projR+blockR*0.9 && d < hitDist) { hitDist=d; hitBlock=b; }
+      // Lob shots use a larger hit sphere — the arc now tracks the block but
+      // give extra margin so a near-miss still registers as a hit.
+      const hitThresh = proj.useLob ? (projR + blockR) * 2.2 : projR + blockR * 0.9;
+      if(d < hitThresh && d < hitDist) { hitDist=d; hitBlock=b; }
     }
 
     function killProj() {
@@ -6016,6 +6027,178 @@ animate();
       console.log('Feedback cleared');
     }
   };
+})();
+</script>
+
+<!-- BOT MODE - toggle with the robot button -->
+<style>
+  #bot-toggle {
+    position: fixed; bottom: 88px; right: 14px; z-index: 9000;
+    width: 48px; height: 48px; border-radius: 50%; border: none;
+    background: rgba(255,255,255,0.88);
+    box-shadow: 0 3px 12px rgba(0,0,0,0.18);
+    font-size: 22px; cursor: pointer;
+    transition: background 0.2s, transform 0.12s;
+    display: flex; align-items: center; justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #bot-toggle.active { background: rgba(80,200,120,0.92); transform: scale(1.08); }
+  #bot-toggle:hover  { transform: scale(1.12); }
+  #bot-panel {
+    position: fixed; bottom: 148px; right: 10px; z-index: 8999;
+    width: 210px;
+    background: rgba(20,20,30,0.82); backdrop-filter: blur(8px);
+    border-radius: 14px; padding: 12px 14px 10px;
+    color: #e0f0ff; font-family: 'Segoe UI', sans-serif;
+    font-size: 12px; line-height: 1.55; display: none;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.35); pointer-events: none;
+  }
+  #bot-panel.show { display: block; }
+  #bot-panel h4   { margin: 0 0 7px; font-size: 13px; color: #a0e0b0; letter-spacing: 0.04em; }
+  #bot-action     { color: #ffffff; font-weight: 600; }
+  #bot-reason     { color: #b8d8f0; opacity: 0.85; }
+  #bot-stats      { margin-top: 7px; color: #c0d8e8; border-top: 1px solid rgba(255,255,255,0.12); padding-top: 7px; }
+  .bot-log-line      { padding: 1px 0; }
+  .bot-log-line.good { color: #80eea0; }
+  .bot-log-line.miss { color: #f0a080; }
+  .bot-log-line.swap { color: #a0c8f8; }
+</style>
+
+<button id="bot-toggle" title="Toggle Bot Mode">&#x1F916;</button>
+<div id="bot-panel">
+  <h4>&#x1F916; Bot is playing</h4>
+  <div id="bot-action">Thinking...</div>
+  <div id="bot-reason"></div>
+  <div id="bot-stats"></div>
+  <div id="bot-log" style="margin-top:6px;max-height:80px;overflow:hidden;"></div>
+</div>
+
+<script>
+(function () {
+  var BOT_INTERVAL_MS = 2200;
+  var botActive = false;
+  var botTimer  = null;
+  var botLog    = [];
+
+  var toggleBtn = document.getElementById('bot-toggle');
+  var panel     = document.getElementById('bot-panel');
+  var elAction  = document.getElementById('bot-action');
+  var elReason  = document.getElementById('bot-reason');
+  var elStats   = document.getElementById('bot-stats');
+  var elLog     = document.getElementById('bot-log');
+
+  function colorLabel(ci) {
+    return (['Red','Blue','Green','Orange','Purple','White'][ci]) || ('Color' + ci);
+  }
+
+  function addLog(msg, cls) {
+    botLog.unshift({ msg: msg, cls: cls });
+    if (botLog.length > 6) botLog.pop();
+    elLog.innerHTML = botLog.slice(0, 4).map(function(e) {
+      return '<div class="bot-log-line ' + (e.cls || '') + '">' + e.msg + '</div>';
+    }).join('');
+  }
+
+  function updatePanel(action, reason) {
+    elAction.textContent = action;
+    elReason.textContent = reason;
+    var alive  = (typeof blocks    !== 'undefined') ? blocks.filter(function(b){ return b.alive; }).length : '?';
+    var shots  = (typeof shotsLeft !== 'undefined') ? shotsLeft : '?';
+    var filled = (typeof carts     !== 'undefined')
+      ? carts.reduce(function(s,c){ return s + c.slots.filter(function(x){ return x !== null; }).length; }, 0)
+      : '?';
+    elStats.textContent = 'Shots: ' + shots + '  Blocks: ' + alive + '  Filled: ' + filled;
+  }
+
+  function botStep() {
+    if (typeof currentBlock === 'undefined' || typeof blocks === 'undefined') return;
+    if (typeof proj !== 'undefined' && proj.active) return;
+    if (typeof levelLocked !== 'undefined' && levelLocked) { stopBot('Level locked'); return; }
+    if (typeof shotsLeft   !== 'undefined' && shotsLeft <= 0) { stopBot('Out of shots'); return; }
+
+    var alive = blocks.filter(function(b){ return b.alive; });
+    if (!alive.length) { stopBot('All blocks cleared!'); return; }
+
+    var colorCount = {};
+    alive.forEach(function(b) { colorCount[b.colorIdx] = (colorCount[b.colorIdx] || 0) + 1; });
+
+    var curCI  = currentBlock.colorIdx;
+    var nxtCI  = (typeof nextBlock !== 'undefined') ? nextBlock.colorIdx : -1;
+    var curCnt = colorCount[curCI] || 0;
+    var nxtCnt = colorCount[nxtCI] || 0;
+
+    var didSwap = false;
+    if (curCnt === 0 && nxtCnt > 0) {
+      if (typeof swapToNext === 'function') swapToNext();
+      didSwap = true;
+      addLog('Swap -> ' + colorLabel(nxtCI) + ' (' + nxtCnt + ')', 'swap');
+      updatePanel('Swap to ' + colorLabel(nxtCI), 'Current color exhausted');
+    } else if (nxtCnt > curCnt + 1 && curCnt < 3) {
+      if (typeof swapToNext === 'function') swapToNext();
+      didSwap = true;
+      addLog('Swap ' + colorLabel(curCI) + '->' + colorLabel(nxtCI) + ' +' + (nxtCnt - curCnt), 'swap');
+      updatePanel('Swap to ' + colorLabel(nxtCI), '+' + (nxtCnt - curCnt) + ' more targets');
+    }
+
+    var fireCI  = (typeof currentBlock !== 'undefined') ? currentBlock.colorIdx : curCI;
+    var targets = alive.filter(function(b){ return b.colorIdx === fireCI; });
+    var target  = targets.length
+      ? targets[Math.floor(Math.random() * targets.length)]
+      : alive[Math.floor(Math.random() * alive.length)];
+
+    if (!target || !target.mesh) return;
+
+    if (!didSwap) {
+      if (targets.length > 0) {
+        addLog('Fire ' + colorLabel(fireCI) + ' x' + targets.length, 'good');
+        updatePanel('Fire ' + colorLabel(fireCI), targets.length + ' target(s)');
+      } else {
+        addLog('Fire (no match)', 'miss');
+        updatePanel('Fire (forced)', 'No ' + colorLabel(fireCI) + ' blocks left');
+      }
+    }
+
+    var worldPos = new THREE.Vector3();
+    target.mesh.getWorldPosition(worldPos);
+    var p2 = worldPos.clone().project(camera);
+    var sx = ( p2.x + 1) / 2 * window.innerWidth;
+    var sy = (-p2.y + 1) / 2 * window.innerHeight;
+
+    if (typeof fireLob === 'function') fireLob(sx, sy);
+  }
+
+  function startBot() {
+    botActive = true;
+    botLog    = [];
+    toggleBtn.classList.add('active');
+    panel.classList.add('show');
+    updatePanel('Starting...', 'Bot is in control');
+    botTimer = setTimeout(function tick() {
+      if (!botActive) return;
+      botStep();
+      botTimer = setTimeout(tick, BOT_INTERVAL_MS);
+    }, 600);
+  }
+
+  function stopBot(reason) {
+    botActive = false;
+    clearTimeout(botTimer);
+    botTimer = null;
+    toggleBtn.classList.remove('active');
+    updatePanel('Stopped', reason || 'Bot off');
+    addLog('Stopped: ' + (reason || 'manual'), '');
+    setTimeout(function(){ if (!botActive) panel.classList.remove('show'); }, 3000);
+  }
+
+  function toggleBot() {
+    if (botActive) stopBot(); else startBot();
+  }
+
+  toggleBtn.addEventListener('click', toggleBot);
+  toggleBtn.addEventListener('touchend', function(e){ e.preventDefault(); toggleBot(); }, { passive: false });
+
+  window.botStart = startBot;
+  window.botStop  = function(){ stopBot('console'); };
 })();
 </script>
 
