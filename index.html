@@ -126,16 +126,16 @@ canvas#threeCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%
 }
 /* Reduce inner gap between cube and label inside each slot too */
 #shooter-ui .proj-slot { gap: 2px; }
-/* Scale down the action cubes a bit since they're competing for top-screen space */
-#shooter-ui .cube3d-wrap { transform: scale(0.7); transform-origin: center; }
+/* CSS 3D cubes replaced by clay canvas previews — hide the cube3d wrappers */
+#fireCubeWrap, #swapCubeWrap { display: none !important; }
 #shooter-ui .proj-slot span { font-size: 10px; }
 #swap-slot { transform: none; order: 2; } /* SWAP appears below NEXT */
 #fire-slot { order: 1; } /* NEXT appears on top */
 #fire-slot { position: relative; }
 .proj-slot { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .proj-slot span { font-family: -apple-system, sans-serif; font-size: 11px; font-weight: 700; color: #1a1a1a; letter-spacing: 0.5px; text-transform: uppercase; }
-#currentPreview { border-radius: 50%; border: 3px solid rgba(255,255,255,0.95); cursor: pointer; position: relative; }
-#nextPreview    { border-radius: 50%; border: 2px solid rgba(255,255,255,0.65); opacity: 0.88; cursor: pointer; }
+#currentPreview { border-radius: 18%; border: 3px solid rgba(255,255,255,0.85); cursor: pointer; position: relative; display: block; }
+#nextPreview    { border-radius: 18%; border: 2px solid rgba(255,255,255,0.60); opacity: 0.88; cursor: pointer; display: block; }
 #lobPreview     { border-radius: 50%; border: 2px solid rgba(100,200,255,0.85); cursor: pointer; opacity: 0.88; }
 #lob-label      { color: rgba(100,200,255,0.9) !important; }
 #power-ring {
@@ -501,6 +501,136 @@ canvas#threeCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%
 
 /* Top-right medal counter — hidden */
 #tokens { display: none !important; }
+
+/* In-game feedback thumbs (top-right corner, below NEXT cube position) */
+#fb-thumbs {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 100;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  pointer-events: auto;
+}
+.fb-btn {
+  background: rgba(255,255,255,0.95);
+  border: 1px solid #6fb6d4;
+  color: #1f3a52;
+  border-radius: 18px;
+  width: 36px; height: 36px;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(60,110,160,0.18);
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+  transition: transform 0.12s;
+}
+.fb-btn:active { transform: scale(0.92); }
+
+/* Tiny "Logged ✓" toast */
+#fb-toast {
+  position: fixed;
+  top: 60px;
+  right: 14px;
+  background: rgba(31, 58, 82, 0.94);
+  color: #fff;
+  border-radius: 10px;
+  padding: 6px 14px;
+  font-family: -apple-system, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  z-index: 101;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.18s, transform 0.18s;
+}
+#fb-toast.show { opacity: 1; transform: translateY(0); }
+
+/* End-of-level rating overlay */
+#rating-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 50, 80, 0.55);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 220;
+  pointer-events: auto;
+}
+#rating-overlay.show { display: flex; }
+#rating-card {
+  background: #fff;
+  border: 2px solid #6fb6d4;
+  border-radius: 18px;
+  padding: 20px 22px;
+  width: 280px;
+  font-family: -apple-system, sans-serif;
+  color: #1f3a52;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+}
+#rating-title {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+#rating-sub {
+  font-size: 12px;
+  color: #345066;
+  margin-bottom: 14px;
+}
+.rating-stars {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin: 10px 0 14px;
+  flex-wrap: wrap;
+}
+.rating-star {
+  width: 24px; height: 24px;
+  border: 1px solid #6fb6d4;
+  border-radius: 6px;
+  background: #fff;
+  color: #1f3a52;
+  font-weight: 700;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+.rating-star.selected {
+  background: #6fb6d4;
+  color: #fff;
+}
+#rating-comment {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cfdfeb;
+  border-radius: 8px;
+  padding: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  resize: none;
+  margin-bottom: 14px;
+}
+#rating-submit, #rating-skip {
+  background: #1f3a52;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  margin: 0 4px;
+}
+#rating-skip { background: transparent; color: #6fb6d4; }
 </style>
 </head>
 <body>
@@ -562,7 +692,7 @@ canvas#threeCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%
         <div class="face top"></div><div class="face bottom"></div>
       </div>
     </div>
-    <canvas id="nextPreview" width="60" height="60" style="display:none;"></canvas>
+    <canvas id="nextPreview" width="60" height="60"></canvas>
     <span>SWAP</span>
   </div>
   <div class="proj-slot" id="fire-slot" style="position:relative;">
@@ -573,7 +703,7 @@ canvas#threeCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%
         <div class="face top"></div><div class="face bottom"></div>
       </div>
     </div>
-    <canvas id="currentPreview" width="86" height="86" style="display:none;"></canvas>
+    <canvas id="currentPreview" width="86" height="86"></canvas>
     <span id="shots-count-inline">--</span>
   </div>
   <div class="proj-slot" id="lob-slot" style="display:none;">
@@ -588,6 +718,14 @@ canvas#threeCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%
 if(typeof THREE === 'undefined') {
   // Fallback CDN
   document.write('<script src="https://unpkg.com/three@0.128.0/build/three.min.js"><\/script>');
+}
+</script>
+<!-- GLTFLoader for high-quality 3D models (try multiple CDNs) -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+if(typeof THREE !== 'undefined' && typeof THREE.GLTFLoader === 'undefined') {
+  // Fallback to unpkg
+  document.write('<script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"><\/script>');
 }
 </script>
 <script>
@@ -893,7 +1031,7 @@ window.addEventListener('resize', () => {
 // Gradient sky via a large sphere
 // ── Space background — Points-based star field ───────────────────────────────
 // Deep space background color
-scene.background = new THREE.Color(0xeaf2f8); // bright lab interior
+scene.background = new THREE.Color(0xf5c5ae); // warm peach / clay toy interior
 
 // ── Star field using THREE.Points ────────────────────────────────────────────
 function makeStarField(count, radius, minSize, maxSize, minBright, maxBright) {
@@ -1023,16 +1161,16 @@ window.addEventListener('resize', ()=>{
 });
 
 // Lights
-scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-sun.position.set(10,18,10); 
+scene.add(new THREE.AmbientLight(0xfff0e0, 0.85)); // warm peach ambient
+const sun = new THREE.DirectionalLight(0xfffbf2, 1.05); // warm white key light
+sun.position.set(8,16,10);
  sun.shadow.camera.near=1; sun.shadow.camera.far=60;
 sun.shadow.camera.left=-12; sun.shadow.camera.right=12;
 sun.shadow.camera.top=12; sun.shadow.camera.bottom=-12;
 scene.add(sun);
-const fill = new THREE.DirectionalLight(0x4488ff, 0.5);
-fill.position.set(-8,-6,-8); scene.add(fill);
-const rim = new THREE.DirectionalLight(0xff8844, 0.3);
+const fill = new THREE.DirectionalLight(0xffd5b0, 0.30); // warm peach fill
+fill.position.set(-8,-4,-8); scene.add(fill);
+const rim = new THREE.DirectionalLight(0xffe8d0, 0.18); // soft warm rim
 rim.position.set(0,-10,0); scene.add(rim);
 const coreLight = new THREE.PointLight(0xffd700, 0, 12);
 scene.add(coreLight);
@@ -1179,7 +1317,7 @@ const beltGroup = new THREE.Group();
 {
   // Two horizontal strips for the upper and lower runs
   const stripGeo = new THREE.BoxGeometry(BELT_STR, 0.08, BELT_DEPTH);
-  const stripMat = new THREE.MeshPhongMaterial({ color: 0xd0d8de, shininess: 80 }); // brushed stainless steel
+  const stripMat = new THREE.MeshPhongMaterial({ color: 0xa8d0e0, shininess: 80 }); // matches funnel colour
   const upper = new THREE.Mesh(stripGeo, stripMat);
   upper.position.set(0, BELT_TOP_Y - 0.04, 0);
   const lower = new THREE.Mesh(stripGeo, stripMat);
@@ -1188,7 +1326,7 @@ const beltGroup = new THREE.Group();
   // Pulley end caps (cylinders with axis along Z)
   const pGeo = new THREE.CylinderGeometry(BELT_R, BELT_R, BELT_DEPTH, 24);
   pGeo.rotateX(Math.PI/2);
-  const pMat = new THREE.MeshPhongMaterial({ color: 0x7d8a96, shininess: 90 }); // polished steel pulley
+  const pMat = new THREE.MeshPhongMaterial({ color: 0xa8d0e0, shininess: 90 }); // matches funnel colour
   const pL = new THREE.Mesh(pGeo, pMat);
   pL.position.set(-BELT_STR/2, BELT_CENTRE_Y, 0);
   const pR = new THREE.Mesh(pGeo, pMat);
@@ -1198,7 +1336,7 @@ const beltGroup = new THREE.Group();
   for(let i = 0; i < 12; i++) {
     const stripe = new THREE.Mesh(
       new THREE.BoxGeometry(0.10, 0.09, BELT_DEPTH * 0.9),
-      new THREE.MeshBasicMaterial({ color: 0x9aa5b0 }) // steel detail stripe
+      new THREE.MeshBasicMaterial({ color: 0xa8d0e0 }) // matches funnel colour
     );
     stripe.position.set(-BELT_STR/2 + i * (BELT_STR/12) + 0.3, BELT_TOP_Y + 0.01, 0);
     stripe.userData = { stripe:true, stripeS: i * (BELT_STR/12) };
@@ -1223,33 +1361,69 @@ const QUEUE_ROW_Y = TOP_ROW_Y - CART_QUEUE_GAP;
 function makeCart(colorIdx) {
   const colorHex = COLORS[colorIdx];
   const g = new THREE.Group();
-  // Cardboard moving box: tan body with a colored "label" stripe matching the cart's color.
-  // We build the walls in cardboard tan and add color-tinted top edges for readability.
-  // Lab sample tray: translucent walls in cart's colour, steel rim/frame
-  const wallMat  = new THREE.MeshPhongMaterial({ color: colorHex, transparent: true, opacity: 0.50, shininess: 90 });
-  const frameMat = new THREE.MeshPhongMaterial({ color: 0xc8d4dc, shininess: 100 }); // steel rim
-  // Base
-  const base = new THREE.Mesh(new THREE.BoxGeometry(CART_WIDTH, 0.1, CART_DEPTH), frameMat);
-  base.position.y = -CART_HEIGHT/2 + 0.05;
+
+  const col = new THREE.Color(colorHex);
+
+  // ── Clay semi-transparent walls — same material family as the cubes ──────
+  const wallMat = new THREE.MeshStandardMaterial({
+    color: col,
+    roughness: 0.62,
+    metalness: 0.0,
+    transparent: true,
+    opacity: 0.38,
+    side: THREE.DoubleSide,   // visible from inside so blocks show through
+  });
+
+  // ── Opaque clay frame — lighter tint of the cart colour ─────────────────
+  const frameCol = col.clone().lerp(new THREE.Color(0xffffff), 0.42);
+  const frameMat = new THREE.MeshStandardMaterial({
+    color: frameCol,
+    roughness: 0.84,
+    metalness: 0.0,
+  });
+
+  // Base (solid)
+  const base = new THREE.Mesh(new THREE.BoxGeometry(CART_WIDTH, 0.09, CART_DEPTH), frameMat);
+  base.position.y = -CART_HEIGHT / 2 + 0.045;
   g.add(base);
+
   // Walls
-  const wT = 0.06;
-  const wH = CART_HEIGHT - 0.1;
-  const w1 = new THREE.Mesh(new THREE.BoxGeometry(wT, wH, CART_DEPTH), wallMat);
-  w1.position.set(-CART_WIDTH/2 + wT/2, 0, 0); g.add(w1);
-  const w2 = new THREE.Mesh(new THREE.BoxGeometry(wT, wH, CART_DEPTH), wallMat);
-  w2.position.set( CART_WIDTH/2 - wT/2, 0, 0); g.add(w2);
-  const w3 = new THREE.Mesh(new THREE.BoxGeometry(CART_WIDTH, wH, wT), wallMat);
-  w3.position.set(0, 0, -CART_DEPTH/2 + wT/2); g.add(w3);
-  const w4 = new THREE.Mesh(new THREE.BoxGeometry(CART_WIDTH, wH, wT), wallMat);
-  w4.position.set(0, 0,  CART_DEPTH/2 - wT/2); g.add(w4);
-  // Corner pillars
-  const pGeo = new THREE.BoxGeometry(0.06, CART_HEIGHT, 0.06);
-  [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sz]) => {
+  const wT = 0.07;
+  const wH = CART_HEIGHT - 0.09;
+  const wallDefs = [
+    { size: [wT, wH, CART_DEPTH],  pos: [-CART_WIDTH/2 + wT/2, 0, 0] },
+    { size: [wT, wH, CART_DEPTH],  pos: [ CART_WIDTH/2 - wT/2, 0, 0] },
+    { size: [CART_WIDTH, wH, wT],  pos: [0, 0, -CART_DEPTH/2 + wT/2] },
+    { size: [CART_WIDTH, wH, wT],  pos: [0, 0,  CART_DEPTH/2 - wT/2] },
+  ];
+  wallDefs.forEach(({ size, pos }) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(...size), wallMat);
+    m.position.set(...pos);
+    g.add(m);
+  });
+
+  // Corner pillars (opaque, frame colour)
+  const pGeo = new THREE.BoxGeometry(0.08, CART_HEIGHT, 0.08);
+  [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx, sz]) => {
     const p = new THREE.Mesh(pGeo, frameMat);
-    p.position.set(sx*CART_WIDTH/2, 0, sz*CART_DEPTH/2);
+    p.position.set(sx * CART_WIDTH / 2, 0, sz * CART_DEPTH / 2);
     g.add(p);
   });
+
+  // Top rim (opaque strip along top edge of each wall — gives a clean finished look)
+  const rimH = 0.06;
+  const rimY = wH / 2 - rimH / 2;
+  [
+    [CART_WIDTH + 0.01, rimH, wT + 0.01, 0,              rimY, -CART_DEPTH/2 + wT/2],
+    [CART_WIDTH + 0.01, rimH, wT + 0.01, 0,              rimY,  CART_DEPTH/2 - wT/2],
+    [wT + 0.01, rimH, CART_DEPTH + 0.01, -CART_WIDTH/2 + wT/2, rimY, 0            ],
+    [wT + 0.01, rimH, CART_DEPTH + 0.01,  CART_WIDTH/2 - wT/2, rimY, 0            ],
+  ].forEach(([w, h, d, x, y, z]) => {
+    const r = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), frameMat);
+    r.position.set(x, y, z);
+    g.add(r);
+  });
+
   scene.add(g);
   return {
     group: g,
@@ -1264,11 +1438,7 @@ function makeCart(colorIdx) {
 
 function pickFreshColor(excludeCarts) {
   // Pick a colour not already used by any of the excluded carts.
-  // Preference order:
-  //   1) An ALIVE cluster colour not in use by any visible cart  (best — playable)
-  //   2) ANY colour not in use by any visible cart                (avoid duplicates)
-  //   3) Random alive colour                                       (last resort)
-  //   4) Any of the 6 colours                                      (very last resort)
+  // If the current level has a `palette`, restrict picks to that palette.
   if(!excludeCarts) {
     excludeCarts = [].concat(carts || [], queueCarts || []);
   }
@@ -1277,7 +1447,14 @@ function pickFreshColor(excludeCarts) {
   if(typeof blocks !== 'undefined') {
     blocks.forEach(b => { if(b.alive) aliveColours.add(b.colorIdx); });
   }
-  const allColours = [0,1,2,3,4,5];
+  // Restrict to level palette when defined
+  let allColours = [0,1,2,3,4,5];
+  if(typeof LEVEL_DEFS !== 'undefined' && typeof currentLevel !== 'undefined') {
+    const lv = LEVEL_DEFS[currentLevel - 1];
+    if(lv && Array.isArray(lv.palette) && lv.palette.length > 0) {
+      allColours = lv.palette.slice();
+    }
+  }
 
   // Tier 1: alive + unused
   const tier1 = allColours.filter(ci => aliveColours.has(ci) && !used.has(ci));
@@ -1424,7 +1601,7 @@ function putBlockOnBelt(mesh, colorIdx, colorHex, startS = 0.2) {
   mesh.rotation.set(0, 0, 0);
   const p = beltPosFromS(startS);
   mesh.position.set(p.x, p.y + SP*0.5, 0);
-  beltBlocks.push({ mesh, colorIdx, colorHex, s: startS });
+  beltBlocks.push({ mesh, colorIdx, colorHex, s: startS, bornAt: performance.now() });
 }
 
 // Per-frame: advance each block along the loop; if on lower run AND passing over
@@ -1474,6 +1651,34 @@ function updateBeltBlocks(dt) {
         break;
       }
     }
+    // Cull homeless blocks: if a block has looped for >12s without finding a home,
+    // fade it out and remove. Keeps the belt from clogging when carts don't match.
+    const ageMs = performance.now() - (bb.bornAt || 0);
+    if(ageMs > 12000 && beltBlocks[i] === bb) {
+      if(bb.mesh) {
+        if(!bb.fading) {
+          bb.fading = true;
+          bb.mesh.traverse(child => {
+            if(child.isMesh && child.material) {
+              child.material.transparent = true;
+            }
+          });
+        }
+        let anyVisible = false;
+        bb.mesh.traverse(child => {
+          if(child.isMesh && child.material) {
+            child.material.opacity = Math.max(0, (child.material.opacity || 1) - dt * 1.5);
+            if(child.material.opacity > 0.02) anyVisible = true;
+          }
+        });
+        if(!anyVisible) {
+          if(bb.mesh.parent) bb.mesh.parent.remove(bb.mesh);
+          beltBlocks.splice(i, 1);
+        }
+      } else {
+        beltBlocks.splice(i, 1);
+      }
+    }
   }
   // Scroll the stripes on the upper belt for motion feel
   beltGroup.children.forEach(ch => {
@@ -1493,7 +1698,8 @@ function dropIntoCart(mesh, cart) {
   cart.slots[slotIdx] = mesh; // reserve
   _cartDropping.push({
     mesh, cart, slotIdx,
-    vy: 0
+    vy: 0,
+    bornAt: performance.now()
   });
 }
 
@@ -1505,6 +1711,21 @@ function updateCartDrops(dt) {
       // Cart was completed/replaced mid-drop — parent block to scene and discard
       scene.remove(d.mesh);
       _cartDropping.splice(i, 1);
+      continue;
+    }
+    // Safety: if a drop has been pending for >3s, force-complete it.
+    const ageMs = performance.now() - (d.bornAt || 0);
+    if(ageMs > 3000) {
+      const slotOffsetXForce = (d.slotIdx - (CART_SLOTS - 1) / 2) * SLOT_SPACING;
+      d.mesh.position.set(slotOffsetXForce, CART_HEIGHT * 0.35 - (CART_HEIGHT/2 + 0.05), 0);
+      d.mesh.rotation.set(0,0,0);
+      if(d.mesh.parent) d.mesh.parent.remove(d.mesh);
+      cart.group.add(d.mesh);
+      cart.landedCount++;
+      _cartDropping.splice(i, 1);
+      playPop(0);
+      if(cart.landedCount >= CART_SLOTS) celebrateCart(cart);
+      setTimeout(() => { if(typeof checkLevelFailed === 'function') checkLevelFailed(); }, 200);
       continue;
     }
     d.vy -= dt * 2.0;
@@ -1583,6 +1804,60 @@ function celebrateCart(cart) {
 // Upper run: s ∈ [0, BELT_STR), x = -BELT_STR/2 + s. So s when x=0 is BELT_STR/2.
 const FUNNEL_DROP_S = BELT_STR / 2;
 const FUNNEL_DROP_CLEARANCE = SP * 1.3; // require this much free s on either side
+
+// Watchdog: nothing should sit in flight forever. If a falling/funnel block has
+// been around for >15s without progressing, remove it. Prevents stuck cubes that
+// fail to settle (e.g. wedged at an awkward angle on the funnel/belt boundary).
+// Aggressive orphan-mesh cleanup: every 5 seconds, scan the scene for any
+// rogue block meshes that are not part of any known tracked list. These are
+// blocks that fell through cracks in the lifecycle (e.g. orphaned by a state
+// transition bug). Removes them outright.
+function _isTrackedMesh(mesh) {
+  if(typeof blocks !== 'undefined' && blocks.some(b => b.mesh === mesh)) return true;
+  if(typeof fallingBlocks !== 'undefined' && fallingBlocks.some(f => f.mesh === mesh)) return true;
+  if(typeof funnelBlocks !== 'undefined' && funnelBlocks.some(f => f.mesh === mesh)) return true;
+  if(typeof beltBlocks !== 'undefined' && beltBlocks.some(b => b.mesh === mesh)) return true;
+  if(typeof _cartDropping !== 'undefined' && _cartDropping.some(d => d.mesh === mesh)) return true;
+  return false;
+}
+setInterval(() => {
+  if(typeof scene === 'undefined') return;
+  const toRemove = [];
+  scene.traverse(obj => {
+    if(obj.userData && obj.userData.shape && !_isTrackedMesh(obj)) {
+      // Cube/sphere shape marker: this is a block mesh.
+      // Make sure it's a direct child of the scene (not part of a cart group).
+      if(obj.parent === scene) toRemove.push(obj);
+    }
+  });
+  if(toRemove.length > 0) {
+    console.log('Orphan cleanup: removing', toRemove.length, 'untracked block meshes');
+    toRemove.forEach(m => { if(m.parent) m.parent.remove(m); });
+  }
+}, 5000);
+
+function cullStuckBlocks() {
+  const now = performance.now();
+  const MAX_AGE_MS = 15000;
+  // Falling
+  for(let i = fallingBlocks.length - 1; i >= 0; i--) {
+    const f = fallingBlocks[i];
+    const age = now - (f.bornAt || 0);
+    if(age > MAX_AGE_MS) {
+      if(f.mesh && f.mesh.parent) f.mesh.parent.remove(f.mesh);
+      fallingBlocks.splice(i, 1);
+    }
+  }
+  // Funnel
+  for(let i = funnelBlocks.length - 1; i >= 0; i--) {
+    const fb = funnelBlocks[i];
+    const age = now - (fb.settledAt || 0);
+    if(age > MAX_AGE_MS) {
+      if(fb.mesh && fb.mesh.parent) fb.mesh.parent.remove(fb.mesh);
+      funnelBlocks.splice(i, 1);
+    }
+  }
+}
 
 let _funnelReleaseCooldown = 0;
 function releaseFromFunnelToBelt(dt) {
@@ -1713,6 +1988,10 @@ const LEVEL_SHOTS = [
 ];
 
 function getShotBudget(level) {
+  // Prefer LEVEL_DEFS budget, fall back to legacy LEVEL_SHOTS array
+  if(typeof LEVEL_DEFS !== 'undefined' && LEVEL_DEFS[level-1] && typeof LEVEL_DEFS[level-1].shotBudget === 'number') {
+    return LEVEL_DEFS[level-1].shotBudget;
+  }
   const idx = Math.min(level-1, LEVEL_SHOTS.length-1);
   return LEVEL_SHOTS[idx];
 }
@@ -2229,27 +2508,210 @@ function getHighlightGeo(shape) {
   return HIGHLIGHT_CACHE[shape];
 }
 
+// === GLTF model registry — high-quality 3D models for the cubes ===
+// Maps a (shape_colorIdx) key to a loaded THREE.Group that can be cloned per block.
+// If a model isn't loaded (or fails), the game falls back to the primitive cube.
+const MODEL_TEMPLATES = {}; // key: "shape_colorIdx" -> THREE.Group (template)
+const MODEL_PATHS = {
+  // All models now use procedural clay geometry — no GLBs needed.
+};
+
+// Load all registered models in the background; game starts with primitives,
+// then upgrades to models as they finish loading.
+function preloadModels() {
+  if(typeof THREE.GLTFLoader === 'undefined') {
+    console.warn('GLTFLoader unavailable, primitives only');
+    return;
+  }
+  const loader = new THREE.GLTFLoader();
+  Object.entries(MODEL_PATHS).forEach(([key, path]) => {
+    loader.load(path,
+      (gltf) => {
+        const root = gltf.scene;
+        // Normalize: center pivot & scale to fit
+        const bbox = new THREE.Box3().setFromObject(root);
+        const size = bbox.getSize(new THREE.Vector3());
+        const center = bbox.getCenter(new THREE.Vector3());
+        root.position.sub(center);
+        
+        const isCart = key.startsWith('cart');
+        // Halve the scale for the cart since it was twice as large
+        const targetScale = isCart ? (CART_WIDTH / 2.0) : 0.4;
+        const targetDim = isCart ? size.x : Math.max(size.x, size.y, size.z);
+        
+        if(targetDim > 0) {
+          let s = targetScale / targetDim;
+          if (isCart) {
+            s *= 0.930; // Scale Multiplier: 0.930
+          }
+          root.scale.set(s, s, s);
+        }
+
+        // Apply custom rotation and position offsets for the cart
+        if (isCart) {
+          // Rotation (degrees): [x: -20, y: -90, z: 5]
+          root.rotation.x = -20 * Math.PI / 180;
+          root.rotation.y = -90 * Math.PI / 180;
+          root.rotation.z = 5 * Math.PI / 180;
+          
+          // Position Offsets: [x: 0.030, y: 0.010, z: -0.090]
+          root.position.x += 0.030;
+          root.position.y += 0.010;
+          root.position.z += -0.090;
+
+          // Programmatic Color Tinting
+          const m = key.match(/^cart_(\d+)$/);
+          if (m) {
+            const colorIdx = parseInt(m[1], 10);
+            const colorHex = COLORS[colorIdx];
+            const mNames = [];
+            
+            root.traverse(child => {
+              if (child.isMesh && child.material) {
+                // Clone the material to avoid shared references across color variants
+                child.material = child.material.clone();
+                mNames.push(`${child.name} [mat: ${child.material.name || 'none'}]`);
+                
+                const nameLower = child.name.toLowerCase();
+                const matLower = (child.material.name || '').toLowerCase();
+                
+                // Exclude mechanical parts: wheels, tires, axles, base, rims, chrome, steel, black parts
+                const isDetail = nameLower.includes('wheel') || nameLower.includes('tire') || 
+                                 nameLower.includes('metal') || nameLower.includes('rim') || 
+                                 nameLower.includes('base') || nameLower.includes('axle') ||
+                                 nameLower.includes('black') || nameLower.includes('tread') ||
+                                 matLower.includes('wheel') || matLower.includes('tire') || 
+                                 matLower.includes('metal') || matLower.includes('black') || 
+                                 matLower.includes('chrome') || matLower.includes('steel');
+                
+                if (!isDetail && child.material.color) {
+                  // White cart (index 5) should stay white/original
+                  if (colorIdx !== 5) {
+                    child.material.color.set(colorHex);
+                  }
+                }
+              }
+            });
+
+            // Log mesh structure to the screen for visual confirmation
+            if (colorIdx === 0) { // Just show once for the first cart
+              const infoDiv = document.createElement('div');
+              infoDiv.id = 'temp-mesh-info';
+              infoDiv.style.position = 'fixed';
+              infoDiv.style.top = '100px';
+              infoDiv.style.left = '20px';
+              infoDiv.style.background = 'rgba(15,23,42,0.9)';
+              infoDiv.style.border = '1px solid rgba(56,189,248,0.4)';
+              infoDiv.style.color = '#fff';
+              infoDiv.style.padding = '12px';
+              infoDiv.style.borderRadius = '12px';
+              infoDiv.style.fontFamily = 'monospace';
+              infoDiv.style.fontSize = '10px';
+              infoDiv.style.zIndex = '999999';
+              infoDiv.innerHTML = `<div style="font-weight:bold;color:#38bdf8;margin-bottom:6px;">📦 Cart Mesh Components:</div>` + mNames.join('<br>') +
+                                  `<br><button onclick="this.parentElement.remove()" style="margin-top:8px;background:rgba(255,255,255,0.15);border:none;border-radius:4px;color:#fff;padding:4px 8px;cursor:pointer;font-size:9px;">Dismiss</button>`;
+              document.body.appendChild(infoDiv);
+            }
+          }
+        }
+
+        const template = new THREE.Group();
+        template.add(root);
+        MODEL_TEMPLATES[key] = template;
+        console.log('Model loaded:', key, 'size', size.x.toFixed(2), size.y.toFixed(2), size.z.toFixed(2));
+
+        // Re-render any existing cubes or carts that should now use this model
+        if(isCart && typeof carts !== 'undefined') {
+          const m = key.match(/^cart_(\d+)$/);
+          if(m) {
+            const targetCi = parseInt(m[1], 10);
+            [...(carts||[]), ...(queueCarts||[])].forEach(c => {
+              if(c.colorIdx === targetCi && c.group) {
+                while(c.group.children.length) c.group.remove(c.group.children[0]);
+                c.group.add(template.clone(true));
+              }
+            });
+          }
+        } else {
+          const m = key.match(/^(.+)_(\d+)$/);
+          if(m && typeof blocks !== 'undefined') {
+            const targetShape = m[1];
+            const targetCi = parseInt(m[2], 10);
+            let upgraded = 0;
+          blocks.forEach(b => {
+            if(!b.alive) return;
+            if(b.shape !== targetShape) return;
+            if(b.colorIdx !== targetCi) return;
+            if(!b.mesh) return;
+            // Remove the old primitive children, add a fresh clone of the new template
+            while(b.mesh.children.length) b.mesh.remove(b.mesh.children[0]);
+            const cloned = template.clone(true);
+            b.mesh.add(cloned);
+            cloned.traverse(obj => {
+              if(obj.isMesh) {
+                obj.userData.isMainMesh = true;
+                if(obj.material) obj.material.side = THREE.FrontSide;
+              }
+            });
+            b.mesh.userData.usedModel = true;
+            upgraded++;
+          });
+          if(upgraded > 0) console.log('Upgraded', upgraded, 'existing cubes to', key);
+        }
+        } // Close else block
+      },
+      undefined,
+      (err) => console.warn('Model load failed:', key, err)
+    );
+  });
+}
+preloadModels();
+
+// ── Rounded box geometry — creates a soft toy / clay cube look ───────────────
+// Uses ExtrudeGeometry with bevel to round all 12 edges and 8 corners.
+function makeRoundedBoxGeo(w, h, d, r, smoothness) {
+  r = Math.min(r, w / 2 - 0.001, h / 2 - 0.001, d / 2 - 0.001);
+  smoothness = smoothness || 3;
+  const eps = 0.00001;
+  const shape = new THREE.Shape();
+  shape.absarc(eps,   eps,   eps, -Math.PI / 2, -Math.PI,   true);
+  shape.absarc(eps,   h-r*2, eps,  Math.PI,      Math.PI/2,  true);
+  shape.absarc(w-r*2, h-r*2, eps,  Math.PI/2,    0,          true);
+  shape.absarc(w-r*2, eps,   eps,  0,            -Math.PI/2, true);
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth:          d - r * 2,
+    bevelEnabled:   true,
+    bevelSegments:  smoothness * 2,
+    steps:          1,
+    bevelSize:      r - eps,
+    bevelThickness: r,
+    curveSegments:  smoothness
+  });
+  geo.center();
+  return geo;
+}
+
+// Cache the rounded cube geo — all cubes are the same size so we build it once.
+let _roundedCubeGeo = null;
+function getRoundedCubeGeo() {
+  if (!_roundedCubeGeo) _roundedCubeGeo = makeRoundedBoxGeo(0.39, 0.39, 0.39, 0.072, 3);
+  return _roundedCubeGeo;
+}
+
 function makeBlockMesh(shape, color) {
   const c = new THREE.Color(color);
   const group = new THREE.Group();
 
-  // Subtle darker outline — uses a darker tint of the block's OWN colour
-  // instead of hard black. Gives depth without the cartoon coloring-book feel.
-  const outlineColor = c.clone().multiplyScalar(0.55);
-  const outlineMat = new THREE.MeshBasicMaterial({
-    color: outlineColor, side: THREE.BackSide
+  // Rounded clay cube — fully procedural, consistent across all colours, no GLB needed.
+  const geo = (shape === 'cube') ? getRoundedCubeGeo() : getCachedGeo(shape);
+  const mat = new THREE.MeshStandardMaterial({
+    color: c,
+    roughness: 0.84,
+    metalness: 0.0,
   });
-  const outline = new THREE.Mesh(getOutlineGeo(shape), outlineMat);
-  group.add(outline);
-
-  // Main colored face — switch from MeshBasicMaterial to MeshLambertMaterial so it
-  // picks up directional lighting (subtle face brightness differences = depth)
-  const mat = new THREE.MeshLambertMaterial({ color: c });
-  const main = new THREE.Mesh(getCachedGeo(shape), mat);
-  group.add(main);
-
-  // Store color ref for raycasting (we need to hit the main mesh)
+  const main = new THREE.Mesh(geo, mat);
   main.userData.isMainMesh = true;
+  group.add(main);
   group.userData.color = color;
   group.userData.shape = shape;
 
@@ -2264,40 +2726,91 @@ function makeWireOverlay(shape, color) {
   return new THREE.LineSegments(edges, mat);
 }
 
-// ── 2D preview (single canvas context, iOS safe) ───────────────────────────
+// ── 2D preview — clay rounded-cube icon matching the Three.js look ────────────
 function drawPreview2D(canvas, block, size) {
   canvas.width = size; canvas.height = size;
   const ctx = canvas.getContext('2d');
-  ctx.clearRect(0,0,size,size);
-  const cx=size/2, cy=size/2, r=size*0.36;
+  ctx.clearRect(0, 0, size, size);
+  if (!block) return;
 
-  const col = block.colorHex;
-  const outline = 'rgba(0,0,0,0.85)';
-  const outlineW = size * 0.055;
+  const col = new THREE.Color(block.colorHex || '#888888');
+  const R = Math.round(col.r * 255);
+  const G = Math.round(col.g * 255);
+  const B = Math.round(col.b * 255);
 
-  function drawShape(fillColor, extraR) {
-    const er = r + (extraR||0);
-    ctx.fillStyle = fillColor;
-    if(block.shape==='cube') {
-      const s = er * 0.82;
-      ctx.beginPath(); ctx.rect(cx-s, cy-s, s*2, s*2); ctx.fill();
-    } else if(block.shape==='sphere') {
-      ctx.beginPath(); ctx.arc(cx, cy, er, 0, Math.PI*2); ctx.fill();
-    } else {
-      const h=er*1.15, hw=er*1.0;
+  if (block.shape === 'cube') {
+    // ── 2.5D clay cube: front face + top face + right face ─────────────
+    // Cube front face must be SQUARE — scale down so full 2.5D projection fits canvas
+    const pad  = size * 0.06;
+    const fw   = size * 0.58;          // front face width
+    const fh   = fw;                   // front face height = fw → square face for a cube
+    const tx   = fw * 0.30;            // isometric right offset (right side face)
+    const ty   = fw * 0.22;            // isometric up offset (top face)
+    const cr   = fw * 0.14;            // corner radius
+
+    // Derived colours — top is brighter, right side is darker
+    const lighten = (v, a) => Math.min(255, Math.round(v + a));
+    const darken  = (v, a) => Math.max(0,   Math.round(v - a));
+    const topR = lighten(R, 55), topG = lighten(G, 55), topB = lighten(B, 55);
+    const sideR = darken(R, 40), sideG = darken(G, 40), sideB = darken(B, 40);
+
+    // Origins
+    const fx = pad, fy = pad + ty;     // front face top-left
+
+    function roundedRect(x, y, w, h, r) {
       ctx.beginPath();
-      ctx.moveTo(cx, cy-h*0.65);
-      ctx.lineTo(cx+hw, cy+h*0.5);
-      ctx.lineTo(cx-hw, cy+h*0.5);
-      ctx.closePath(); ctx.fill();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y,     x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h,     x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y,         x + r, y);
+      ctx.closePath();
     }
+
+    // Right face (parallelogram — darker side)
+    ctx.fillStyle = `rgb(${sideR},${sideG},${sideB})`;
+    ctx.beginPath();
+    ctx.moveTo(fx + fw,      fy);
+    ctx.lineTo(fx + fw + tx, fy - ty);
+    ctx.lineTo(fx + fw + tx, fy - ty + fh);
+    ctx.lineTo(fx + fw,      fy + fh);
+    ctx.closePath();
+    ctx.fill();
+
+    // Top face (parallelogram — lighter)
+    ctx.fillStyle = `rgb(${topR},${topG},${topB})`;
+    ctx.beginPath();
+    ctx.moveTo(fx,           fy);
+    ctx.lineTo(fx + tx,      fy - ty);
+    ctx.lineTo(fx + fw + tx, fy - ty);
+    ctx.lineTo(fx + fw,      fy);
+    ctx.closePath();
+    ctx.fill();
+
+    // Front face (rounded rect — base colour)
+    roundedRect(fx, fy, fw, fh, cr);
+    ctx.fillStyle = `rgb(${R},${G},${B})`;
+    ctx.fill();
+
+    // Subtle highlight gradient on the front face for clay matte feel
+    roundedRect(fx, fy, fw, fh, cr);
+    const grad = ctx.createLinearGradient(fx, fy, fx + fw, fy + fh);
+    grad.addColorStop(0,    'rgba(255,255,255,0.20)');
+    grad.addColorStop(0.35, 'rgba(255,255,255,0.05)');
+    grad.addColorStop(1,    'rgba(0,0,0,0.10)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+  } else {
+    // Fallback for other shapes — simple circle
+    const cx = size / 2, cy = size / 2, r = size * 0.38;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgb(${R},${G},${B})`; ctx.fill();
   }
-
-  // Dark outline (draw slightly larger in black first)
-  drawShape(outline, outlineW);
-  // Main color fill
-  drawShape(col, 0);
-
 }
 
 
@@ -2740,6 +3253,334 @@ updateUI();
 // Coordinates are in grid units; SP=spacing scales them into world space (SP hoisted earlier)
 
 // ci shortcuts: 0=red 1=blue 2=green 3=orange 4=purple 5=white
+const LEVEL_DEFS = [
+  // ---- Level 1: Cube Alpha — 20 blocks, budget 10 ----
+  {
+    id: 'level_01',
+    name: 'Level 1',
+    displayName: "Cube Alpha",
+    cluster: [
+      {x: -1, y:  1, z:  1, s:'cube', ci:0},
+      {x:  0, y:  1, z:  1, s:'cube', ci:0},
+      {x: -1, y:  0, z:  1, s:'cube', ci:0},
+      {x:  0, y:  0, z:  1, s:'cube', ci:0},
+      {x:  1, y:  1, z: -1, s:'cube', ci:1},
+      {x:  1, y:  1, z:  0, s:'cube', ci:1},
+      {x:  1, y:  1, z:  1, s:'cube', ci:1},
+      {x:  1, y: -1, z:  0, s:'cube', ci:0},
+      {x:  1, y:  0, z:  0, s:'cube', ci:0},
+      {x:  1, y: -1, z: -1, s:'cube', ci:0},
+      {x:  1, y:  0, z: -1, s:'cube', ci:0},
+      {x: -1, y: -1, z:  1, s:'cube', ci:1},
+      {x:  0, y: -1, z:  1, s:'cube', ci:1},
+      {x:  1, y: -1, z:  1, s:'cube', ci:1},
+      {x: -1, y:  1, z: -1, s:'cube', ci:0},
+      {x:  0, y:  1, z: -1, s:'cube', ci:0},
+      {x: -1, y: -1, z: -1, s:'cube', ci:1},
+      {x:  0, y: -1, z: -1, s:'cube', ci:1},
+      {x: -1, y: -1, z:  0, s:'cube', ci:0},
+      {x: -1, y:  0, z:  0, s:'cube', ci:1}
+    ],
+    shotBudget: 10,
+    palette: [0, 1], // red + blue only
+    startingActiveCarts: null, // null = auto (Level 1 special-cased)
+    startingQueueCarts: null,
+    blockFiringOrder: 'random'
+  },
+  // ---- Level 2: Cube Beta — 20 blocks, budget 10 ----
+  {
+    id: 'level_02',
+    name: 'Level 2',
+    displayName: "Cube Beta",
+    cluster: [
+      {x: -1, y:  1, z:  1, s:'cube', ci:0},
+      {x:  0, y:  1, z:  1, s:'cube', ci:0},
+      {x: -1, y:  0, z:  1, s:'cube', ci:0},
+      {x:  0, y:  0, z:  1, s:'cube', ci:0},
+      {x:  1, y:  1, z: -1, s:'cube', ci:1},
+      {x:  1, y:  1, z:  0, s:'cube', ci:1},
+      {x:  1, y:  0, z: -1, s:'cube', ci:1},
+      {x:  1, y:  0, z:  0, s:'cube', ci:1},
+      {x: -1, y:  1, z: -1, s:'cube', ci:2},
+      {x:  0, y:  1, z: -1, s:'cube', ci:2},
+      {x:  1, y:  1, z:  1, s:'cube', ci:2},
+      {x: -1, y: -1, z: -1, s:'cube', ci:0},
+      {x:  0, y: -1, z: -1, s:'cube', ci:0},
+      {x: -1, y: -1, z:  1, s:'cube', ci:1},
+      {x:  0, y: -1, z:  1, s:'cube', ci:1},
+      {x:  1, y: -1, z:  1, s:'cube', ci:1},
+      {x:  1, y: -1, z:  0, s:'cube', ci:2},
+      {x:  1, y: -1, z: -1, s:'cube', ci:2},
+      {x:  0, y:  0, z: -1, s:'cube', ci:0},
+      {x: -1, y:  0, z:  0, s:'cube', ci:2},
+      {x: -1, y:  0, z: -1, s:'cube', ci:1}
+    ],
+    shotBudget: 10,
+    palette: [0, 1, 2], // red + blue + green
+    startingActiveCarts: null, // null = auto (Level 1 special-cased)
+    startingQueueCarts: null,
+    blockFiringOrder: 'random'
+  },
+  // ---- Level 3: Crystal Cluster — 15 blocks, budget 7 ----
+  {
+    id: 'level_03',
+    name: 'Level 3',
+    displayName: "Crystal Cluster",
+    cluster: [
+      {x: -1, y:  0, z:  1, s:'cube', ci:0},
+      {x:  0, y:  0, z:  1, s:'cube', ci:0},
+      {x: -1, y: -1, z:  1, s:'cube', ci:0},
+      {x:  0, y: -1, z:  1, s:'cube', ci:0},
+      {x: -1, y:  1, z:  0, s:'cube', ci:1},
+      {x:  0, y:  1, z:  0, s:'cube', ci:1},
+      {x:  1, y:  1, z:  0, s:'cube', ci:1},
+      {x:  1, y:  0, z:  0, s:'cube', ci:2},
+      {x:  1, y: -1, z:  0, s:'cube', ci:2},
+      {x:  1, y:  1, z:  1, s:'cube', ci:4},
+      {x: -1, y:  1, z: -1, s:'cube', ci:4},
+      {x:  0, y:  1, z: -1, s:'cube', ci:4},
+      {x: -1, y: -1, z:  0, s:'cube', ci:5},
+      {x: -1, y: -1, z: -1, s:'cube', ci:5},
+      {x: -1, y:  0, z: -1, s:'cube', ci:5}
+    ],
+    shotBudget: 7,
+    startingActiveCarts: null, // null = auto (Level 1 special-cased)
+    startingQueueCarts: null,
+    blockFiringOrder: 'random'
+  },
+  // ---- Level 4: Hex Mix — 19 blocks, budget 9 ----
+  {
+    id: 'level_04',
+    name: 'Level 4',
+    displayName: "Hex Mix",
+    cluster: [
+      {x: -1, y:  1, z:  1, s:'cube', ci:0},
+      {x:  0, y:  1, z:  1, s:'cube', ci:0},
+      {x:  1, y:  1, z:  1, s:'cube', ci:0},
+      {x:  1, y:  0, z:  1, s:'cube', ci:0},
+      {x: -1, y:  0, z:  1, s:'cube', ci:1},
+      {x:  0, y:  0, z:  1, s:'cube', ci:1},
+      {x: -1, y: -1, z:  1, s:'cube', ci:1},
+      {x:  1, y: -1, z:  1, s:'cube', ci:2},
+      {x:  1, y: -1, z:  0, s:'cube', ci:2},
+      {x:  1, y:  0, z: -1, s:'cube', ci:3},
+      {x:  1, y:  0, z:  0, s:'cube', ci:3},
+      {x:  1, y:  1, z: -1, s:'cube', ci:3},
+      {x: -1, y:  1, z: -1, s:'cube', ci:4},
+      {x:  0, y:  1, z: -1, s:'cube', ci:4},
+      {x: -1, y:  0, z: -1, s:'cube', ci:5},
+      {x: -1, y: -1, z: -1, s:'cube', ci:5},
+      {x:  1, y: -1, z: -1, s:'cube', ci:5},
+      {x:  0, y: -1, z:  1, s:'cube', ci:0},
+      {x:  0, y: -1, z: -1, s:'cube', ci:2}
+    ],
+    shotBudget: 9,
+    startingActiveCarts: null, // null = auto (Level 1 special-cased)
+    startingQueueCarts: null,
+    blockFiringOrder: 'random'
+  },
+  // ---- Level 5: Scatter Lab — 25 blocks, budget 12 ----
+  {
+    id: 'level_05',
+    name: 'Level 5',
+    displayName: "Scatter Lab",
+    cluster: [
+      {x: -1, y:  1, z:  1, s:'cube', ci:0},
+      {x:  0, y:  1, z:  1, s:'cube', ci:0},
+      {x:  1, y:  1, z:  1, s:'cube', ci:1},
+      {x:  1, y:  1, z:  0, s:'cube', ci:1},
+      {x:  1, y:  1, z: -1, s:'cube', ci:1},
+      {x: -1, y:  1, z:  0, s:'cube', ci:2},
+      {x:  0, y:  1, z:  0, s:'cube', ci:3},
+      {x: -1, y:  1, z: -1, s:'cube', ci:4},
+      {x:  0, y:  1, z: -1, s:'cube', ci:4},
+      {x: -1, y:  0, z:  1, s:'cube', ci:5},
+      {x:  0, y:  0, z:  1, s:'cube', ci:5},
+      {x:  1, y:  0, z:  1, s:'cube', ci:5},
+      {x:  1, y:  0, z:  0, s:'cube', ci:0},
+      {x:  1, y:  0, z: -1, s:'cube', ci:3},
+      {x: -1, y:  0, z:  0, s:'cube', ci:2},
+      {x: -1, y:  0, z: -1, s:'cube', ci:2},
+      {x: -1, y: -1, z:  1, s:'cube', ci:4},
+      {x:  0, y: -1, z:  1, s:'cube', ci:4},
+      {x:  1, y: -1, z:  1, s:'cube', ci:4},
+      {x: -1, y: -1, z:  0, s:'cube', ci:5},
+      {x:  0, y: -1, z:  0, s:'cube', ci:5},
+      {x:  1, y: -1, z:  0, s:'cube', ci:1},
+      {x:  1, y: -1, z: -1, s:'cube', ci:1},
+      {x:  0, y: -1, z: -1, s:'cube', ci:1},
+      {x: -1, y: -1, z: -1, s:'cube', ci:1}
+    ],
+    shotBudget: 12,
+    startingActiveCarts: null, // null = auto (Level 1 special-cased)
+    startingQueueCarts: null,
+    blockFiringOrder: 'random'
+  },
+  // ---- Level 6: Tri-Strata — 26 blocks, budget 5 ----
+  {
+    id: 'level_06',
+    name: 'Level 6',
+    displayName: "Tri-Strata",
+    cluster: [
+      {x: -1, y:  1, z: -1, s:'cube', ci:0},
+      {x: -1, y:  1, z:  0, s:'cube', ci:0},
+      {x: -1, y:  1, z:  1, s:'cube', ci:0},
+      {x:  0, y:  1, z: -1, s:'cube', ci:0},
+      {x:  0, y:  1, z:  0, s:'cube', ci:0},
+      {x:  0, y:  1, z:  1, s:'cube', ci:0},
+      {x:  1, y:  1, z: -1, s:'cube', ci:0},
+      {x:  1, y:  1, z:  0, s:'cube', ci:0},
+      {x:  1, y:  1, z:  1, s:'cube', ci:0},
+      {x: -1, y: -1, z: -1, s:'cube', ci:1},
+      {x: -1, y: -1, z:  0, s:'cube', ci:1},
+      {x: -1, y: -1, z:  1, s:'cube', ci:1},
+      {x:  0, y: -1, z: -1, s:'cube', ci:1},
+      {x:  0, y: -1, z:  0, s:'cube', ci:1},
+      {x:  0, y: -1, z:  1, s:'cube', ci:1},
+      {x:  1, y: -1, z: -1, s:'cube', ci:1},
+      {x:  1, y: -1, z:  0, s:'cube', ci:1},
+      {x:  1, y: -1, z:  1, s:'cube', ci:1},
+      {x: -1, y:  0, z: -1, s:'cube', ci:2},
+      {x:  0, y:  0, z: -1, s:'cube', ci:2},
+      {x:  1, y:  0, z: -1, s:'cube', ci:2},
+      {x: -1, y:  0, z:  0, s:'cube', ci:2},
+      {x:  1, y:  0, z:  0, s:'cube', ci:2},
+      {x: -1, y:  0, z:  1, s:'cube', ci:2},
+      {x:  0, y:  0, z:  1, s:'cube', ci:2},
+      {x:  1, y:  0, z:  1, s:'cube', ci:2}
+    ],
+    shotBudget: 5,
+    startingActiveCarts: null, // null = auto (Level 1 special-cased)
+    startingQueueCarts: null,
+    blockFiringOrder: 'random'
+  },
+  // ---- Level 7: Three Pillars — 16 blocks, budget 5 ----
+  {
+    id: 'level_07',
+    name: 'Level 7',
+    displayName: "Three Pillars",
+    cluster: [
+      {x: -1, y:  1, z:  1, s:'cube', ci:0},
+      {x:  0, y:  1, z:  1, s:'cube', ci:0},
+      {x:  1, y:  1, z:  1, s:'cube', ci:0},
+      {x: -1, y:  1, z:  0, s:'cube', ci:0},
+      {x:  0, y:  1, z:  0, s:'cube', ci:0},
+      {x:  1, y:  1, z:  0, s:'cube', ci:0},
+      {x: -1, y:  0, z:  1, s:'cube', ci:1},
+      {x:  0, y:  0, z:  1, s:'cube', ci:1},
+      {x:  1, y:  0, z:  1, s:'cube', ci:1},
+      {x: -1, y: -1, z:  1, s:'cube', ci:1},
+      {x:  0, y: -1, z:  1, s:'cube', ci:1},
+      {x:  1, y: -1, z:  1, s:'cube', ci:1},
+      {x:  1, y:  0, z:  0, s:'cube', ci:2},
+      {x:  1, y:  0, z: -1, s:'cube', ci:2},
+      {x:  1, y: -1, z:  0, s:'cube', ci:2},
+      {x:  1, y: -1, z: -1, s:'cube', ci:2}
+    ],
+    shotBudget: 5,
+    startingActiveCarts: null, // null = auto (Level 1 special-cased)
+    startingQueueCarts: null,
+    blockFiringOrder: 'random'
+  },
+  // ---- Level 8: Symmetry Six — 18 blocks, budget 9 ----
+  {
+    id: 'level_08',
+    name: 'Level 8',
+    displayName: "Symmetry Six",
+    cluster: [
+      {x: -1, y:  1, z:  1, s:'cube', ci:0},
+      {x: -1, y:  1, z:  0, s:'cube', ci:0},
+      {x: -1, y:  1, z: -1, s:'cube', ci:0},
+      {x:  1, y:  1, z:  1, s:'cube', ci:1},
+      {x:  1, y:  1, z:  0, s:'cube', ci:1},
+      {x:  1, y:  1, z: -1, s:'cube', ci:1},
+      {x: -1, y:  0, z: -1, s:'cube', ci:2},
+      {x:  0, y:  0, z: -1, s:'cube', ci:2},
+      {x:  1, y:  0, z: -1, s:'cube', ci:2},
+      {x: -1, y:  0, z:  1, s:'cube', ci:3},
+      {x:  0, y:  0, z:  1, s:'cube', ci:3},
+      {x:  1, y:  0, z:  1, s:'cube', ci:3},
+      {x: -1, y: -1, z:  1, s:'cube', ci:4},
+      {x: -1, y: -1, z:  0, s:'cube', ci:4},
+      {x: -1, y: -1, z: -1, s:'cube', ci:4},
+      {x:  1, y: -1, z:  1, s:'cube', ci:5},
+      {x:  1, y: -1, z:  0, s:'cube', ci:5},
+      {x:  1, y: -1, z: -1, s:'cube', ci:5}
+    ],
+    shotBudget: 9,
+    startingActiveCarts: null, // null = auto (Level 1 special-cased)
+    startingQueueCarts: null,
+    blockFiringOrder: 'random'
+  },
+  // ---- Level 9: Particle Soup — 20 blocks, budget 12 ----
+  {
+    id: 'level_09',
+    name: 'Level 9',
+    displayName: "Particle Soup",
+    cluster: [
+      {x:  0, y:  0, z: -1, s:'cube', ci:0},
+      {x:  0, y: -1, z: -1, s:'cube', ci:0},
+      {x:  1, y: -1, z: -1, s:'cube', ci:0},
+      {x: -1, y:  1, z: -1, s:'cube', ci:1},
+      {x:  0, y:  1, z: -1, s:'cube', ci:1},
+      {x:  0, y: -1, z:  1, s:'cube', ci:2},
+      {x:  0, y:  1, z:  0, s:'cube', ci:3},
+      {x:  1, y:  0, z:  1, s:'cube', ci:4},
+      {x:  1, y: -1, z:  1, s:'cube', ci:4},
+      {x:  0, y:  0, z:  1, s:'cube', ci:5},
+      {x: -1, y:  0, z:  1, s:'cube', ci:5},
+      {x:  1, y:  1, z:  0, s:'cube', ci:0},
+      {x:  1, y:  1, z:  1, s:'cube', ci:0},
+      {x:  0, y: -1, z:  0, s:'cube', ci:1},
+      {x: -1, y: -1, z:  1, s:'cube', ci:2},
+      {x:  1, y: -1, z:  0, s:'cube', ci:2},
+      {x: -1, y: -1, z:  0, s:'cube', ci:0},
+      {x:  0, y:  1, z:  1, s:'cube', ci:0},
+      {x: -1, y:  0, z:  0, s:'cube', ci:3},
+      {x:  1, y:  1, z: -1, s:'cube', ci:0}
+    ],
+    shotBudget: 12,
+    startingActiveCarts: null, // null = auto (Level 1 special-cased)
+    startingQueueCarts: null,
+    blockFiringOrder: 'random'
+  },
+  // ---- Level 10: Master Mix — 23 blocks, budget 14 ----
+  {
+    id: 'level_10',
+    name: 'Level 10',
+    displayName: "Master Mix",
+    cluster: [
+      {x: -1, y:  1, z:  1, s:'cube', ci:0},
+      {x:  0, y:  1, z:  1, s:'cube', ci:0},
+      {x: -1, y:  0, z:  1, s:'cube', ci:0},
+      {x:  0, y:  0, z:  1, s:'cube', ci:0},
+      {x:  1, y: -1, z: -1, s:'cube', ci:1},
+      {x:  1, y: -1, z:  0, s:'cube', ci:1},
+      {x:  1, y:  0, z: -1, s:'cube', ci:1},
+      {x:  1, y:  0, z:  0, s:'cube', ci:1},
+      {x: -1, y:  1, z: -1, s:'cube', ci:2},
+      {x:  0, y:  1, z: -1, s:'cube', ci:2},
+      {x:  1, y:  1, z: -1, s:'cube', ci:2},
+      {x:  1, y:  1, z:  1, s:'cube', ci:3},
+      {x:  1, y:  1, z:  0, s:'cube', ci:3},
+      {x:  1, y: -1, z:  1, s:'cube', ci:4},
+      {x:  0, y: -1, z:  1, s:'cube', ci:4},
+      {x: -1, y: -1, z:  1, s:'cube', ci:4},
+      {x: -1, y: -1, z:  0, s:'cube', ci:2},
+      {x: -1, y: -1, z: -1, s:'cube', ci:2},
+      {x: -1, y:  0, z: -1, s:'cube', ci:1},
+      {x: -1, y:  0, z:  0, s:'cube', ci:1},
+      {x:  0, y:  1, z:  0, s:'cube', ci:4},
+      {x:  0, y: -1, z: -1, s:'cube', ci:3},
+      {x:  0, y: -1, z:  0, s:'cube', ci:0}
+    ],
+    shotBudget: 14,
+    startingActiveCarts: null, // null = auto (Level 1 special-cased)
+    startingQueueCarts: null,
+    blockFiringOrder: 'random'
+  },
+];
+
 const LEVELS = [
   { name:'House', blocks:[
     {x: -1, y:  1, z:  1, s:'cube', ci:0},
@@ -2944,6 +3785,11 @@ function buildIsland() {
 
   // Pick level layout (cycle through, then repeat last)
   const lvIdx = Math.min(currentLevel-1, LEVELS.length-1);
+  // Prefer LEVEL_DEFS cluster if available
+  let _lvBlocks = null;
+  if(typeof LEVEL_DEFS !== 'undefined' && LEVEL_DEFS[currentLevel-1] && LEVEL_DEFS[currentLevel-1].cluster) {
+    _lvBlocks = LEVEL_DEFS[currentLevel-1].cluster;
+  }
   const layout = LEVELS[lvIdx];
 
   // Update hint with level name
@@ -3225,7 +4071,8 @@ function detachFloaters() {
       ry: (Math.random()-0.5)*0.06,
       rz: (Math.random()-0.5)*0.04,
       life: 1.0,
-      delay: i * 40
+      delay: i * 40,
+      bornAt: performance.now()
     });
   });
   // Chain: removing these may expose more floaters — check again shortly
@@ -3268,8 +4115,9 @@ function doExplode(matched) {
         ry: (Math.random()-0.5)*0.08,
         rz: (Math.random()-0.5)*0.08,
         worldSpace: true,  // flag for the update loop
-        settling: false
-      });
+        settling: false,
+      bornAt: performance.now()
+    });
     },i*70);
   });
   shakeAmt=Math.min(matched.length*0.13,0.8);
@@ -3604,6 +4452,21 @@ function checkLevelFailed() {
   attemptReshuffle(aliveClusterColours);
 }
 
+// Debug helpers
+window.dumpAlive = function() {
+  const alive = (typeof blocks !== 'undefined' ? blocks : []).filter(b => b.alive);
+  console.log('Alive blocks:', alive.length, alive.map(b => `(${b.x},${b.y},${b.z}) ci=${b.colorIdx}`));
+  console.log('coreExposed:', typeof coreExposed !== 'undefined' ? coreExposed : '?');
+  console.log('levelLocked:', typeof levelLocked !== 'undefined' ? levelLocked : '?');
+  console.log('funnelBlocks:', (typeof funnelBlocks !== 'undefined' ? funnelBlocks : []).length);
+  console.log('beltBlocks:', (typeof beltBlocks !== 'undefined' ? beltBlocks : []).length);
+  console.log('_cartDropping:', (typeof _cartDropping !== 'undefined' ? _cartDropping : []).length);
+  return alive;
+};
+window.forceComplete = function() {
+  if(typeof showLevelComplete === 'function') showLevelComplete();
+};
+
 function checkCoreExposure() {
   if(!coreExposed && blocks.filter(b=>b.alive).length===0) {
     coreExposed=true;
@@ -3678,6 +4541,8 @@ function waitForPipelineClearAndComplete() {
 }
 
 function showLevelComplete() {
+  // Trigger rating prompt after the celebration has played
+  setTimeout(() => { if(typeof window.showRatingPrompt === 'function') window.showRatingPrompt('completed'); }, 2200);
   tokens++;
   // Update token display
   document.getElementById('tokens').textContent='🏅 ×'+tokens;
@@ -4521,6 +5386,8 @@ function animate() {
 
   // Physics update for blocks already settled in the funnel (so piles shift naturally)
   updateFunnelBlocks(dt);
+  // Stuck-cube watchdog: cull funnel/falling blocks older than 15s
+  cullStuckBlocks();
   // Funnel → belt: release settled funnel blocks onto the upper belt
   releaseFromFunnelToBelt(dt);
   // Move blocks around the loop; drop into matching carts from lower run
@@ -4993,5 +5860,164 @@ animate();
   window.startTutorial = startTutorial;
 })();
 </script>
+<!-- Feedback UI: in-game thumbs + toast + end-of-level rating overlay -->
+<div id="fb-thumbs">
+  <button class="fb-btn" id="fb-up"   title="Mark this moment as fun">👍</button>
+  <button class="fb-btn" id="fb-down" title="Mark this moment as not fun">👎</button>
+</div>
+<div id="fb-toast">Logged ✓</div>
+
+<div id="rating-overlay">
+  <div id="rating-card">
+    <div id="rating-title">RATE THIS LEVEL</div>
+    <div id="rating-sub">How fun was that, 1 (bad) to 10 (great)?</div>
+    <div class="rating-stars" id="rating-stars"></div>
+    <textarea id="rating-comment" rows="2" placeholder="Optional notes (what worked, what didn't)…"></textarea>
+    <div>
+      <button id="rating-submit">SUBMIT</button>
+      <button id="rating-skip">SKIP</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const FB_KEY = 'level_feedback_v1';
+
+  function snapshotContext() {
+    try {
+      const colorName = ci => ['red','blue','green','orange','purple','white'][ci] || ('?'+ci);
+      return {
+        level: window.currentLevel || 1,
+        shotsLeft: typeof shotsLeft !== 'undefined' ? shotsLeft : null,
+        activeCarts: (typeof carts !== 'undefined' ? carts : []).map(c => colorName(c.colorIdx)),
+        queueCarts: (typeof queueCarts !== 'undefined' ? queueCarts : []).map(c => colorName(c.colorIdx)),
+        belt: (typeof beltBlocks !== 'undefined' ? beltBlocks : []).map(b => colorName(b.colorIdx)),
+        funnel: (typeof funnelBlocks !== 'undefined' ? funnelBlocks : []).map(b => colorName(b.colorIdx)),
+        clusterAlive: (typeof blocks !== 'undefined' ? blocks : [])
+          .filter(b => b.alive).reduce((acc,b) => {
+            const n = colorName(b.colorIdx); acc[n] = (acc[n]||0)+1; return acc;
+          }, {}),
+        cartCount: typeof cartCount !== 'undefined' ? cartCount : 0
+      };
+    } catch(e) { return { error: String(e) }; }
+  }
+
+  // Backend-ready abstraction: today writes localStorage, tomorrow POSTs to server.
+  window.recordFeedback = function(eventType, data) {
+    const entry = {
+      type: eventType,
+      timestamp: Date.now(),
+      ...data
+    };
+    try {
+      const raw = localStorage.getItem(FB_KEY);
+      const store = raw ? JSON.parse(raw) : {};
+      const levelId = 'level_' + String(window.currentLevel || 1).padStart(2,'0');
+      if(!store[levelId]) store[levelId] = [];
+      store[levelId].push(entry);
+      localStorage.setItem(FB_KEY, JSON.stringify(store));
+    } catch(e) {
+      console.warn('Feedback write failed:', e);
+    }
+  };
+
+  // ── Toast ──
+  const toast = document.getElementById('fb-toast');
+  let toastTimer = null;
+  function showToast(text) {
+    if(!toast) return;
+    toast.textContent = text;
+    toast.classList.add('show');
+    if(toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 1000);
+  }
+
+  // ── Thumbs handlers ──
+  function flag(type) {
+    window.recordFeedback(type, { context: snapshotContext() });
+    showToast('Logged ✓');
+  }
+  document.getElementById('fb-up').addEventListener('click', () => flag('mid_fun'));
+  document.getElementById('fb-up').addEventListener('touchend', e => { e.preventDefault(); flag('mid_fun'); }, {passive:false});
+  document.getElementById('fb-down').addEventListener('click', () => flag('mid_unfun'));
+  document.getElementById('fb-down').addEventListener('touchend', e => { e.preventDefault(); flag('mid_unfun'); }, {passive:false});
+
+  // ── Rating overlay ──
+  const ratingOverlay = document.getElementById('rating-overlay');
+  const starsContainer = document.getElementById('rating-stars');
+  let selectedRating = 0;
+  for(let i = 1; i <= 10; i++) {
+    const s = document.createElement('button');
+    s.className = 'rating-star';
+    s.textContent = i;
+    s.addEventListener('click', () => {
+      selectedRating = i;
+      [...starsContainer.children].forEach((el, idx) => {
+        el.classList.toggle('selected', idx < i);
+      });
+    });
+    starsContainer.appendChild(s);
+  }
+
+  function resetRatingUI() {
+    selectedRating = 0;
+    [...starsContainer.children].forEach(el => el.classList.remove('selected'));
+    document.getElementById('rating-comment').value = '';
+  }
+
+  window.showRatingPrompt = function(outcome) {
+    resetRatingUI();
+    document.getElementById('rating-sub').textContent =
+      outcome === 'completed' ? 'You cleared it! How fun was that, 1-10?'
+                              : 'Tough one! How fun was that, 1-10?';
+    ratingOverlay.classList.add('show');
+  };
+
+  function submitRating() {
+    if(selectedRating === 0) { ratingOverlay.classList.remove('show'); return; }
+    const comment = document.getElementById('rating-comment').value.trim();
+    window.recordFeedback('rating', {
+      value: selectedRating,
+      comment: comment || null,
+      context: snapshotContext()
+    });
+    ratingOverlay.classList.remove('show');
+    showToast('Thanks ✓');
+  }
+  document.getElementById('rating-submit').addEventListener('click', submitRating);
+  document.getElementById('rating-submit').addEventListener('touchend', e => { e.preventDefault(); submitRating(); }, {passive:false});
+  document.getElementById('rating-skip').addEventListener('click', () => ratingOverlay.classList.remove('show'));
+  document.getElementById('rating-skip').addEventListener('touchend', e => { e.preventDefault(); ratingOverlay.classList.remove('show'); }, {passive:false});
+
+  // ── Export function: callable via console window.exportFeedback() ──
+  window.exportFeedback = function() {
+    try {
+      const raw = localStorage.getItem(FB_KEY) || '{}';
+      const blob = new Blob([raw], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'level_feedback_' + new Date().toISOString().slice(0,10) + '.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      console.log('Feedback exported:', JSON.parse(raw));
+    } catch(e) {
+      console.error('Export failed:', e);
+    }
+  };
+
+  // Optional: clear stored feedback
+  window.clearFeedback = function() {
+    if(confirm('Clear all stored feedback?')) {
+      localStorage.removeItem(FB_KEY);
+      console.log('Feedback cleared');
+    }
+  };
+})();
+</script>
+
 </body>
 </html>
