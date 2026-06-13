@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Block Sort</title>
+<title>Voxel Shooter 3D</title>
 <style>
 /* ── MATCH MECHANIC HIDDEN (temporarily while funnel/conveyor is developed) ── */
 #goal-ui, #goal-label, #goal-canvas, #goal-debug-label, #star-counter, #combo, #score, #core-msg, #charge-msg, #hint, #goal-celebration, #goal-celebration-star, #goal-celebration-text, #goal-celebration-sub, #fire-debug, #level-badge, #lives-ui { display: none !important; }
@@ -126,16 +126,16 @@ canvas#threeCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%
 }
 /* Reduce inner gap between cube and label inside each slot too */
 #shooter-ui .proj-slot { gap: 2px; }
-/* CSS 3D cubes replaced by clay canvas previews — hide the cube3d wrappers */
-#fireCubeWrap, #swapCubeWrap { display: none !important; }
+/* Scale down the action cubes a bit since they're competing for top-screen space */
+#shooter-ui .cube3d-wrap { transform: scale(0.7); transform-origin: center; }
 #shooter-ui .proj-slot span { font-size: 10px; }
 #swap-slot { transform: none; order: 2; } /* SWAP appears below NEXT */
 #fire-slot { order: 1; } /* NEXT appears on top */
 #fire-slot { position: relative; }
 .proj-slot { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .proj-slot span { font-family: -apple-system, sans-serif; font-size: 11px; font-weight: 700; color: #1a1a1a; letter-spacing: 0.5px; text-transform: uppercase; }
-#currentPreview { border-radius: 18%; border: 3px solid rgba(255,255,255,0.85); cursor: pointer; position: relative; display: block; }
-#nextPreview    { border-radius: 18%; border: 2px solid rgba(255,255,255,0.60); opacity: 0.88; cursor: pointer; display: block; }
+#currentPreview { border-radius: 50%; border: 3px solid rgba(255,255,255,0.95); cursor: pointer; position: relative; }
+#nextPreview    { border-radius: 50%; border: 2px solid rgba(255,255,255,0.65); opacity: 0.88; cursor: pointer; }
 #lobPreview     { border-radius: 50%; border: 2px solid rgba(100,200,255,0.85); cursor: pointer; opacity: 0.88; }
 #lob-label      { color: rgba(100,200,255,0.9) !important; }
 #power-ring {
@@ -692,7 +692,7 @@ canvas#threeCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%
         <div class="face top"></div><div class="face bottom"></div>
       </div>
     </div>
-    <canvas id="nextPreview" width="60" height="60"></canvas>
+    <canvas id="nextPreview" width="60" height="60" style="display:none;"></canvas>
     <span>SWAP</span>
   </div>
   <div class="proj-slot" id="fire-slot" style="position:relative;">
@@ -703,7 +703,7 @@ canvas#threeCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%
         <div class="face top"></div><div class="face bottom"></div>
       </div>
     </div>
-    <canvas id="currentPreview" width="86" height="86"></canvas>
+    <canvas id="currentPreview" width="86" height="86" style="display:none;"></canvas>
     <span id="shots-count-inline">--</span>
   </div>
   <div class="proj-slot" id="lob-slot" style="display:none;">
@@ -1031,7 +1031,7 @@ window.addEventListener('resize', () => {
 // Gradient sky via a large sphere
 // ── Space background — Points-based star field ───────────────────────────────
 // Deep space background color
-scene.background = new THREE.Color(0xf5c5ae); // warm peach / clay toy interior
+scene.background = new THREE.Color(0xeaf2f8); // bright lab interior
 
 // ── Star field using THREE.Points ────────────────────────────────────────────
 function makeStarField(count, radius, minSize, maxSize, minBright, maxBright) {
@@ -1161,16 +1161,16 @@ window.addEventListener('resize', ()=>{
 });
 
 // Lights
-scene.add(new THREE.AmbientLight(0xfff0e0, 0.85)); // warm peach ambient
-const sun = new THREE.DirectionalLight(0xfffbf2, 1.05); // warm white key light
-sun.position.set(8,16,10);
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+sun.position.set(10,18,10); 
  sun.shadow.camera.near=1; sun.shadow.camera.far=60;
 sun.shadow.camera.left=-12; sun.shadow.camera.right=12;
 sun.shadow.camera.top=12; sun.shadow.camera.bottom=-12;
 scene.add(sun);
-const fill = new THREE.DirectionalLight(0xffd5b0, 0.30); // warm peach fill
-fill.position.set(-8,-4,-8); scene.add(fill);
-const rim = new THREE.DirectionalLight(0xffe8d0, 0.18); // soft warm rim
+const fill = new THREE.DirectionalLight(0x4488ff, 0.5);
+fill.position.set(-8,-6,-8); scene.add(fill);
+const rim = new THREE.DirectionalLight(0xff8844, 0.3);
 rim.position.set(0,-10,0); scene.add(rim);
 const coreLight = new THREE.PointLight(0xffd700, 0, 12);
 scene.add(coreLight);
@@ -1317,7 +1317,7 @@ const beltGroup = new THREE.Group();
 {
   // Two horizontal strips for the upper and lower runs
   const stripGeo = new THREE.BoxGeometry(BELT_STR, 0.08, BELT_DEPTH);
-  const stripMat = new THREE.MeshPhongMaterial({ color: 0xa8d0e0, shininess: 80 }); // matches funnel colour
+  const stripMat = new THREE.MeshPhongMaterial({ color: 0xd0d8de, shininess: 80 }); // brushed stainless steel
   const upper = new THREE.Mesh(stripGeo, stripMat);
   upper.position.set(0, BELT_TOP_Y - 0.04, 0);
   const lower = new THREE.Mesh(stripGeo, stripMat);
@@ -1326,7 +1326,7 @@ const beltGroup = new THREE.Group();
   // Pulley end caps (cylinders with axis along Z)
   const pGeo = new THREE.CylinderGeometry(BELT_R, BELT_R, BELT_DEPTH, 24);
   pGeo.rotateX(Math.PI/2);
-  const pMat = new THREE.MeshPhongMaterial({ color: 0xa8d0e0, shininess: 90 }); // matches funnel colour
+  const pMat = new THREE.MeshPhongMaterial({ color: 0x7d8a96, shininess: 90 }); // polished steel pulley
   const pL = new THREE.Mesh(pGeo, pMat);
   pL.position.set(-BELT_STR/2, BELT_CENTRE_Y, 0);
   const pR = new THREE.Mesh(pGeo, pMat);
@@ -1336,7 +1336,7 @@ const beltGroup = new THREE.Group();
   for(let i = 0; i < 12; i++) {
     const stripe = new THREE.Mesh(
       new THREE.BoxGeometry(0.10, 0.09, BELT_DEPTH * 0.9),
-      new THREE.MeshBasicMaterial({ color: 0xa8d0e0 }) // matches funnel colour
+      new THREE.MeshBasicMaterial({ color: 0x9aa5b0 }) // steel detail stripe
     );
     stripe.position.set(-BELT_STR/2 + i * (BELT_STR/12) + 0.3, BELT_TOP_Y + 0.01, 0);
     stripe.userData = { stripe:true, stripeS: i * (BELT_STR/12) };
@@ -1361,69 +1361,33 @@ const QUEUE_ROW_Y = TOP_ROW_Y - CART_QUEUE_GAP;
 function makeCart(colorIdx) {
   const colorHex = COLORS[colorIdx];
   const g = new THREE.Group();
-
-  const col = new THREE.Color(colorHex);
-
-  // ── Clay semi-transparent walls — same material family as the cubes ──────
-  const wallMat = new THREE.MeshStandardMaterial({
-    color: col,
-    roughness: 0.62,
-    metalness: 0.0,
-    transparent: true,
-    opacity: 0.38,
-    side: THREE.DoubleSide,   // visible from inside so blocks show through
-  });
-
-  // ── Opaque clay frame — lighter tint of the cart colour ─────────────────
-  const frameCol = col.clone().lerp(new THREE.Color(0xffffff), 0.42);
-  const frameMat = new THREE.MeshStandardMaterial({
-    color: frameCol,
-    roughness: 0.84,
-    metalness: 0.0,
-  });
-
-  // Base (solid)
-  const base = new THREE.Mesh(new THREE.BoxGeometry(CART_WIDTH, 0.09, CART_DEPTH), frameMat);
-  base.position.y = -CART_HEIGHT / 2 + 0.045;
+  // Cardboard moving box: tan body with a colored "label" stripe matching the cart's color.
+  // We build the walls in cardboard tan and add color-tinted top edges for readability.
+  // Lab sample tray: translucent walls in cart's colour, steel rim/frame
+  const wallMat  = new THREE.MeshPhongMaterial({ color: colorHex, transparent: true, opacity: 0.50, shininess: 90 });
+  const frameMat = new THREE.MeshPhongMaterial({ color: 0xc8d4dc, shininess: 100 }); // steel rim
+  // Base
+  const base = new THREE.Mesh(new THREE.BoxGeometry(CART_WIDTH, 0.1, CART_DEPTH), frameMat);
+  base.position.y = -CART_HEIGHT/2 + 0.05;
   g.add(base);
-
   // Walls
-  const wT = 0.07;
-  const wH = CART_HEIGHT - 0.09;
-  const wallDefs = [
-    { size: [wT, wH, CART_DEPTH],  pos: [-CART_WIDTH/2 + wT/2, 0, 0] },
-    { size: [wT, wH, CART_DEPTH],  pos: [ CART_WIDTH/2 - wT/2, 0, 0] },
-    { size: [CART_WIDTH, wH, wT],  pos: [0, 0, -CART_DEPTH/2 + wT/2] },
-    { size: [CART_WIDTH, wH, wT],  pos: [0, 0,  CART_DEPTH/2 - wT/2] },
-  ];
-  wallDefs.forEach(({ size, pos }) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(...size), wallMat);
-    m.position.set(...pos);
-    g.add(m);
-  });
-
-  // Corner pillars (opaque, frame colour)
-  const pGeo = new THREE.BoxGeometry(0.08, CART_HEIGHT, 0.08);
-  [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx, sz]) => {
+  const wT = 0.06;
+  const wH = CART_HEIGHT - 0.1;
+  const w1 = new THREE.Mesh(new THREE.BoxGeometry(wT, wH, CART_DEPTH), wallMat);
+  w1.position.set(-CART_WIDTH/2 + wT/2, 0, 0); g.add(w1);
+  const w2 = new THREE.Mesh(new THREE.BoxGeometry(wT, wH, CART_DEPTH), wallMat);
+  w2.position.set( CART_WIDTH/2 - wT/2, 0, 0); g.add(w2);
+  const w3 = new THREE.Mesh(new THREE.BoxGeometry(CART_WIDTH, wH, wT), wallMat);
+  w3.position.set(0, 0, -CART_DEPTH/2 + wT/2); g.add(w3);
+  const w4 = new THREE.Mesh(new THREE.BoxGeometry(CART_WIDTH, wH, wT), wallMat);
+  w4.position.set(0, 0,  CART_DEPTH/2 - wT/2); g.add(w4);
+  // Corner pillars
+  const pGeo = new THREE.BoxGeometry(0.06, CART_HEIGHT, 0.06);
+  [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sz]) => {
     const p = new THREE.Mesh(pGeo, frameMat);
-    p.position.set(sx * CART_WIDTH / 2, 0, sz * CART_DEPTH / 2);
+    p.position.set(sx*CART_WIDTH/2, 0, sz*CART_DEPTH/2);
     g.add(p);
   });
-
-  // Top rim (opaque strip along top edge of each wall — gives a clean finished look)
-  const rimH = 0.06;
-  const rimY = wH / 2 - rimH / 2;
-  [
-    [CART_WIDTH + 0.01, rimH, wT + 0.01, 0,              rimY, -CART_DEPTH/2 + wT/2],
-    [CART_WIDTH + 0.01, rimH, wT + 0.01, 0,              rimY,  CART_DEPTH/2 - wT/2],
-    [wT + 0.01, rimH, CART_DEPTH + 0.01, -CART_WIDTH/2 + wT/2, rimY, 0            ],
-    [wT + 0.01, rimH, CART_DEPTH + 0.01,  CART_WIDTH/2 - wT/2, rimY, 0            ],
-  ].forEach(([w, h, d, x, y, z]) => {
-    const r = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), frameMat);
-    r.position.set(x, y, z);
-    g.add(r);
-  });
-
   scene.add(g);
   return {
     group: g,
@@ -1655,27 +1619,20 @@ function updateBeltBlocks(dt) {
     // fade it out and remove. Keeps the belt from clogging when carts don't match.
     const ageMs = performance.now() - (bb.bornAt || 0);
     if(ageMs > 12000 && beltBlocks[i] === bb) {
-      if(bb.mesh) {
+      // Fade out animation (visual hint to player)
+      if(bb.mesh && bb.mesh.material) {
         if(!bb.fading) {
           bb.fading = true;
-          bb.mesh.traverse(child => {
-            if(child.isMesh && child.material) {
-              child.material.transparent = true;
-            }
-          });
+          bb.mesh.material.transparent = true;
+          // start fade
         }
-        let anyVisible = false;
-        bb.mesh.traverse(child => {
-          if(child.isMesh && child.material) {
-            child.material.opacity = Math.max(0, (child.material.opacity || 1) - dt * 1.5);
-            if(child.material.opacity > 0.02) anyVisible = true;
-          }
-        });
-        if(!anyVisible) {
+        bb.mesh.material.opacity = Math.max(0, (bb.mesh.material.opacity || 1) - dt * 1.5);
+        if(bb.mesh.material.opacity <= 0.02) {
           if(bb.mesh.parent) bb.mesh.parent.remove(bb.mesh);
           beltBlocks.splice(i, 1);
         }
       } else {
+        // No mesh — just remove
         beltBlocks.splice(i, 1);
       }
     }
@@ -2513,8 +2470,21 @@ function getHighlightGeo(shape) {
 // If a model isn't loaded (or fails), the game falls back to the primitive cube.
 const MODEL_TEMPLATES = {}; // key: "shape_colorIdx" -> THREE.Group (template)
 const MODEL_PATHS = {
-  // All models now use procedural clay geometry — no GLBs needed.
+  // One shared high-quality beveled cube mesh (untextured, ~2.9K tris).
+  // The game tints it per colour at clone time — one geometry, six colours.
+  'cube_base': 'models/cube_base.glb',
 };
+
+// Apply a per-colour tint material to a cloned cube template.
+function applyCubeTint(cloned, colorHex) {
+  const mat = new THREE.MeshLambertMaterial({ color: new THREE.Color(colorHex) });
+  cloned.traverse(obj => {
+    if(obj.isMesh) {
+      obj.material = mat;
+      obj.userData.isMainMesh = true;
+    }
+  });
+}
 
 // Load all registered models in the background; game starts with primitives,
 // then upgrades to models as they finish loading.
@@ -2528,137 +2498,36 @@ function preloadModels() {
     loader.load(path,
       (gltf) => {
         const root = gltf.scene;
-        // Normalize: center pivot & scale to fit
+        // Normalize: center pivot & scale to fit the 0.4-unit grid
         const bbox = new THREE.Box3().setFromObject(root);
         const size = bbox.getSize(new THREE.Vector3());
         const center = bbox.getCenter(new THREE.Vector3());
         root.position.sub(center);
-        
-        const isCart = key.startsWith('cart');
-        // Halve the scale for the cart since it was twice as large
-        const targetScale = isCart ? (CART_WIDTH / 2.0) : 0.4;
-        const targetDim = isCart ? size.x : Math.max(size.x, size.y, size.z);
-        
-        if(targetDim > 0) {
-          let s = targetScale / targetDim;
-          if (isCart) {
-            s *= 0.930; // Scale Multiplier: 0.930
-          }
+        const maxDim = Math.max(size.x, size.y, size.z);
+        if(maxDim > 0) {
+          const s = 0.4 / maxDim;
           root.scale.set(s, s, s);
         }
-
-        // Apply custom rotation and position offsets for the cart
-        if (isCart) {
-          // Rotation (degrees): [x: -20, y: -90, z: 5]
-          root.rotation.x = -20 * Math.PI / 180;
-          root.rotation.y = -90 * Math.PI / 180;
-          root.rotation.z = 5 * Math.PI / 180;
-          
-          // Position Offsets: [x: 0.030, y: 0.010, z: -0.090]
-          root.position.x += 0.030;
-          root.position.y += 0.010;
-          root.position.z += -0.090;
-
-          // Programmatic Color Tinting
-          const m = key.match(/^cart_(\d+)$/);
-          if (m) {
-            const colorIdx = parseInt(m[1], 10);
-            const colorHex = COLORS[colorIdx];
-            const mNames = [];
-            
-            root.traverse(child => {
-              if (child.isMesh && child.material) {
-                // Clone the material to avoid shared references across color variants
-                child.material = child.material.clone();
-                mNames.push(`${child.name} [mat: ${child.material.name || 'none'}]`);
-                
-                const nameLower = child.name.toLowerCase();
-                const matLower = (child.material.name || '').toLowerCase();
-                
-                // Exclude mechanical parts: wheels, tires, axles, base, rims, chrome, steel, black parts
-                const isDetail = nameLower.includes('wheel') || nameLower.includes('tire') || 
-                                 nameLower.includes('metal') || nameLower.includes('rim') || 
-                                 nameLower.includes('base') || nameLower.includes('axle') ||
-                                 nameLower.includes('black') || nameLower.includes('tread') ||
-                                 matLower.includes('wheel') || matLower.includes('tire') || 
-                                 matLower.includes('metal') || matLower.includes('black') || 
-                                 matLower.includes('chrome') || matLower.includes('steel');
-                
-                if (!isDetail && child.material.color) {
-                  // White cart (index 5) should stay white/original
-                  if (colorIdx !== 5) {
-                    child.material.color.set(colorHex);
-                  }
-                }
-              }
-            });
-
-            // Log mesh structure to the screen for visual confirmation
-            if (colorIdx === 0) { // Just show once for the first cart
-              const infoDiv = document.createElement('div');
-              infoDiv.id = 'temp-mesh-info';
-              infoDiv.style.position = 'fixed';
-              infoDiv.style.top = '100px';
-              infoDiv.style.left = '20px';
-              infoDiv.style.background = 'rgba(15,23,42,0.9)';
-              infoDiv.style.border = '1px solid rgba(56,189,248,0.4)';
-              infoDiv.style.color = '#fff';
-              infoDiv.style.padding = '12px';
-              infoDiv.style.borderRadius = '12px';
-              infoDiv.style.fontFamily = 'monospace';
-              infoDiv.style.fontSize = '10px';
-              infoDiv.style.zIndex = '999999';
-              infoDiv.innerHTML = `<div style="font-weight:bold;color:#38bdf8;margin-bottom:6px;">📦 Cart Mesh Components:</div>` + mNames.join('<br>') +
-                                  `<br><button onclick="this.parentElement.remove()" style="margin-top:8px;background:rgba(255,255,255,0.15);border:none;border-radius:4px;color:#fff;padding:4px 8px;cursor:pointer;font-size:9px;">Dismiss</button>`;
-              document.body.appendChild(infoDiv);
-            }
-          }
-        }
-
         const template = new THREE.Group();
         template.add(root);
         MODEL_TEMPLATES[key] = template;
         console.log('Model loaded:', key, 'size', size.x.toFixed(2), size.y.toFixed(2), size.z.toFixed(2));
 
-        // Re-render any existing cubes or carts that should now use this model
-        if(isCart && typeof carts !== 'undefined') {
-          const m = key.match(/^cart_(\d+)$/);
-          if(m) {
-            const targetCi = parseInt(m[1], 10);
-            [...(carts||[]), ...(queueCarts||[])].forEach(c => {
-              if(c.colorIdx === targetCi && c.group) {
-                while(c.group.children.length) c.group.remove(c.group.children[0]);
-                c.group.add(template.clone(true));
-              }
-            });
-          }
-        } else {
-          const m = key.match(/^(.+)_(\d+)$/);
-          if(m && typeof blocks !== 'undefined') {
-            const targetShape = m[1];
-            const targetCi = parseInt(m[2], 10);
-            let upgraded = 0;
+        // Re-render any existing cubes that should now use this model.
+        // 'cube_base' applies to ALL cube colours (tinted per block).
+        if(key === 'cube_base' && typeof blocks !== 'undefined') {
+          let upgraded = 0;
           blocks.forEach(b => {
-            if(!b.alive) return;
-            if(b.shape !== targetShape) return;
-            if(b.colorIdx !== targetCi) return;
-            if(!b.mesh) return;
-            // Remove the old primitive children, add a fresh clone of the new template
+            if(!b.alive || b.shape !== 'cube' || !b.mesh) return;
             while(b.mesh.children.length) b.mesh.remove(b.mesh.children[0]);
             const cloned = template.clone(true);
+            applyCubeTint(cloned, b.colorHex !== undefined ? b.colorHex : COLORS[b.colorIdx]);
             b.mesh.add(cloned);
-            cloned.traverse(obj => {
-              if(obj.isMesh) {
-                obj.userData.isMainMesh = true;
-                if(obj.material) obj.material.side = THREE.FrontSide;
-              }
-            });
             b.mesh.userData.usedModel = true;
             upgraded++;
           });
-          if(upgraded > 0) console.log('Upgraded', upgraded, 'existing cubes to', key);
+          if(upgraded > 0) console.log('Upgraded', upgraded, 'existing cubes to tinted base mesh');
         }
-        } // Close else block
       },
       undefined,
       (err) => console.warn('Model load failed:', key, err)
@@ -2667,51 +2536,40 @@ function preloadModels() {
 }
 preloadModels();
 
-// ── Rounded box geometry — creates a soft toy / clay cube look ───────────────
-// Uses ExtrudeGeometry with bevel to round all 12 edges and 8 corners.
-function makeRoundedBoxGeo(w, h, d, r, smoothness) {
-  r = Math.min(r, w / 2 - 0.001, h / 2 - 0.001, d / 2 - 0.001);
-  smoothness = smoothness || 3;
-  const eps = 0.00001;
-  const shape = new THREE.Shape();
-  shape.absarc(eps,   eps,   eps, -Math.PI / 2, -Math.PI,   true);
-  shape.absarc(eps,   h-r*2, eps,  Math.PI,      Math.PI/2,  true);
-  shape.absarc(w-r*2, h-r*2, eps,  Math.PI/2,    0,          true);
-  shape.absarc(w-r*2, eps,   eps,  0,            -Math.PI/2, true);
-  const geo = new THREE.ExtrudeGeometry(shape, {
-    depth:          d - r * 2,
-    bevelEnabled:   true,
-    bevelSegments:  smoothness * 2,
-    steps:          1,
-    bevelSize:      r - eps,
-    bevelThickness: r,
-    curveSegments:  smoothness
-  });
-  geo.center();
-  return geo;
-}
-
-// Cache the rounded cube geo — all cubes are the same size so we build it once.
-let _roundedCubeGeo = null;
-function getRoundedCubeGeo() {
-  if (!_roundedCubeGeo) _roundedCubeGeo = makeRoundedBoxGeo(0.39, 0.39, 0.39, 0.072, 3);
-  return _roundedCubeGeo;
-}
-
 function makeBlockMesh(shape, color) {
   const c = new THREE.Color(color);
   const group = new THREE.Group();
 
-  // Rounded clay cube — fully procedural, consistent across all colours, no GLB needed.
-  const geo = (shape === 'cube') ? getRoundedCubeGeo() : getCachedGeo(shape);
-  const mat = new THREE.MeshStandardMaterial({
-    color: c,
-    roughness: 0.84,
-    metalness: 0.0,
+  // Determine colorIdx from the hex colour
+  let colorIdx = -1;
+  for(let i = 0; i < COLORS.length; i++) {
+    if(COLORS[i] === color) { colorIdx = i; break; }
+  }
+
+  // Try the shared base mesh first (cubes only), tinted with this block's colour
+  if(shape === 'cube' && MODEL_TEMPLATES['cube_base']) {
+    const cloned = MODEL_TEMPLATES['cube_base'].clone(true);
+    applyCubeTint(cloned, color);
+    group.add(cloned);
+    group.userData.color = color;
+    group.userData.shape = shape;
+    group.userData.usedModel = true;
+    return group;
+  }
+
+  // Fallback: primitive with darker outline + Lambert material (original path)
+  const outlineColor = c.clone().multiplyScalar(0.55);
+  const outlineMat = new THREE.MeshBasicMaterial({
+    color: outlineColor, side: THREE.BackSide
   });
-  const main = new THREE.Mesh(geo, mat);
-  main.userData.isMainMesh = true;
+  const outline = new THREE.Mesh(getOutlineGeo(shape), outlineMat);
+  group.add(outline);
+
+  const mat = new THREE.MeshLambertMaterial({ color: c });
+  const main = new THREE.Mesh(getCachedGeo(shape), mat);
   group.add(main);
+
+  main.userData.isMainMesh = true;
   group.userData.color = color;
   group.userData.shape = shape;
 
@@ -2726,91 +2584,40 @@ function makeWireOverlay(shape, color) {
   return new THREE.LineSegments(edges, mat);
 }
 
-// ── 2D preview — clay rounded-cube icon matching the Three.js look ────────────
+// ── 2D preview (single canvas context, iOS safe) ───────────────────────────
 function drawPreview2D(canvas, block, size) {
   canvas.width = size; canvas.height = size;
   const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, size, size);
-  if (!block) return;
+  ctx.clearRect(0,0,size,size);
+  const cx=size/2, cy=size/2, r=size*0.36;
 
-  const col = new THREE.Color(block.colorHex || '#888888');
-  const R = Math.round(col.r * 255);
-  const G = Math.round(col.g * 255);
-  const B = Math.round(col.b * 255);
+  const col = block.colorHex;
+  const outline = 'rgba(0,0,0,0.85)';
+  const outlineW = size * 0.055;
 
-  if (block.shape === 'cube') {
-    // ── 2.5D clay cube: front face + top face + right face ─────────────
-    // Cube front face must be SQUARE — scale down so full 2.5D projection fits canvas
-    const pad  = size * 0.06;
-    const fw   = size * 0.58;          // front face width
-    const fh   = fw;                   // front face height = fw → square face for a cube
-    const tx   = fw * 0.30;            // isometric right offset (right side face)
-    const ty   = fw * 0.22;            // isometric up offset (top face)
-    const cr   = fw * 0.14;            // corner radius
-
-    // Derived colours — top is brighter, right side is darker
-    const lighten = (v, a) => Math.min(255, Math.round(v + a));
-    const darken  = (v, a) => Math.max(0,   Math.round(v - a));
-    const topR = lighten(R, 55), topG = lighten(G, 55), topB = lighten(B, 55);
-    const sideR = darken(R, 40), sideG = darken(G, 40), sideB = darken(B, 40);
-
-    // Origins
-    const fx = pad, fy = pad + ty;     // front face top-left
-
-    function roundedRect(x, y, w, h, r) {
+  function drawShape(fillColor, extraR) {
+    const er = r + (extraR||0);
+    ctx.fillStyle = fillColor;
+    if(block.shape==='cube') {
+      const s = er * 0.82;
+      ctx.beginPath(); ctx.rect(cx-s, cy-s, s*2, s*2); ctx.fill();
+    } else if(block.shape==='sphere') {
+      ctx.beginPath(); ctx.arc(cx, cy, er, 0, Math.PI*2); ctx.fill();
+    } else {
+      const h=er*1.15, hw=er*1.0;
       ctx.beginPath();
-      ctx.moveTo(x + r, y);
-      ctx.lineTo(x + w - r, y);
-      ctx.quadraticCurveTo(x + w, y,     x + w, y + r);
-      ctx.lineTo(x + w, y + h - r);
-      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-      ctx.lineTo(x + r, y + h);
-      ctx.quadraticCurveTo(x, y + h,     x, y + h - r);
-      ctx.lineTo(x, y + r);
-      ctx.quadraticCurveTo(x, y,         x + r, y);
-      ctx.closePath();
+      ctx.moveTo(cx, cy-h*0.65);
+      ctx.lineTo(cx+hw, cy+h*0.5);
+      ctx.lineTo(cx-hw, cy+h*0.5);
+      ctx.closePath(); ctx.fill();
     }
-
-    // Right face (parallelogram — darker side)
-    ctx.fillStyle = `rgb(${sideR},${sideG},${sideB})`;
-    ctx.beginPath();
-    ctx.moveTo(fx + fw,      fy);
-    ctx.lineTo(fx + fw + tx, fy - ty);
-    ctx.lineTo(fx + fw + tx, fy - ty + fh);
-    ctx.lineTo(fx + fw,      fy + fh);
-    ctx.closePath();
-    ctx.fill();
-
-    // Top face (parallelogram — lighter)
-    ctx.fillStyle = `rgb(${topR},${topG},${topB})`;
-    ctx.beginPath();
-    ctx.moveTo(fx,           fy);
-    ctx.lineTo(fx + tx,      fy - ty);
-    ctx.lineTo(fx + fw + tx, fy - ty);
-    ctx.lineTo(fx + fw,      fy);
-    ctx.closePath();
-    ctx.fill();
-
-    // Front face (rounded rect — base colour)
-    roundedRect(fx, fy, fw, fh, cr);
-    ctx.fillStyle = `rgb(${R},${G},${B})`;
-    ctx.fill();
-
-    // Subtle highlight gradient on the front face for clay matte feel
-    roundedRect(fx, fy, fw, fh, cr);
-    const grad = ctx.createLinearGradient(fx, fy, fx + fw, fy + fh);
-    grad.addColorStop(0,    'rgba(255,255,255,0.20)');
-    grad.addColorStop(0.35, 'rgba(255,255,255,0.05)');
-    grad.addColorStop(1,    'rgba(0,0,0,0.10)');
-    ctx.fillStyle = grad;
-    ctx.fill();
-
-  } else {
-    // Fallback for other shapes — simple circle
-    const cx = size / 2, cy = size / 2, r = size * 0.38;
-    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fillStyle = `rgb(${R},${G},${B})`; ctx.fill();
   }
+
+  // Dark outline (draw slightly larger in black first)
+  drawShape(outline, outlineW);
+  // Main color fill
+  drawShape(col, 0);
+
 }
 
 
@@ -3827,8 +3634,8 @@ function buildIsland() {
   // Built after blocks array is populated — stored on pivot as coreBeams group
 
 
-  // Place each voxel from layout
-  layout.blocks.forEach(def => {
+  // Place each voxel from layout — prefer LEVEL_DEFS cluster when defined
+  (_lvBlocks || layout.blocks).forEach(def => {
     if(def.x===0 && def.y===0 && def.z===0) return; // skip — core is here
     const wx=def.x*SP, wy=def.y*SP, wz=def.z*SP;
     const ci=def.ci;
@@ -3950,9 +3757,6 @@ function launchProjectile(targetBlock, tapX, tapY, snap, power=0, exactHitPoint=
     const lobDist = actualLaunchPos.distanceTo(worldPos);
     proj.lobDuration = Math.max(0.8, lobDist / 10);
     proj.lobElapsed = 0;
-    // Store reference to real target block so the arc can track its world pos
-    // as the cluster rotates during flight. Phantom targets (colorIdx === -1) are excluded.
-    proj.lobTargetBlock = (targetBlock && targetBlock.alive && targetBlock.colorIdx !== -1) ? targetBlock : null;
   } else {
     proj.vx=dir.x*SPEED; proj.vy=dir.y*SPEED; proj.vz=dir.z*SPEED;
   }
@@ -5117,11 +4921,6 @@ function animate() {
     let nextPos;
     if(proj.useLob) {
       // ── Lob arc: parabola strictly in world Y (up then down) ─────────────
-      // Track target block's current world position so the arc follows the
-      // rotating cluster — prevents misses caused by cluster spin during flight.
-      if(proj.lobTargetBlock && proj.lobTargetBlock.alive && proj.lobTargetBlock.mesh) {
-        proj.lobTargetBlock.mesh.getWorldPosition(proj.lobEnd);
-      }
       proj.lobElapsed = (proj.lobElapsed||0) + dt;
       const t = Math.min(proj.lobElapsed / proj.lobDuration, 1.0);
       // Linear interpolation in XZ, parabolic in Y
@@ -5157,10 +4956,7 @@ function animate() {
       if(!window.COLLISION_ON && (b.colorIdx !== proj.shotCI || b.shape !== proj.shotSh)) continue;
       const d=Math.hypot(projLocal.x-b.wx, projLocal.y-b.wy, projLocal.z-b.wz);
       const blockR=PROJ_R[b.shape]||0.44;
-      // Lob shots use a larger hit sphere — the arc now tracks the block but
-      // give extra margin so a near-miss still registers as a hit.
-      const hitThresh = proj.useLob ? (projR + blockR) * 2.2 : projR + blockR * 0.9;
-      if(d < hitThresh && d < hitDist) { hitDist=d; hitBlock=b; }
+      if(d < projR+blockR*0.9 && d < hitDist) { hitDist=d; hitBlock=b; }
     }
 
     function killProj() {
@@ -6027,178 +5823,6 @@ animate();
       console.log('Feedback cleared');
     }
   };
-})();
-</script>
-
-<!-- BOT MODE - toggle with the robot button -->
-<style>
-  #bot-toggle {
-    position: fixed; bottom: 88px; right: 14px; z-index: 9000;
-    width: 48px; height: 48px; border-radius: 50%; border: none;
-    background: rgba(255,255,255,0.88);
-    box-shadow: 0 3px 12px rgba(0,0,0,0.18);
-    font-size: 22px; cursor: pointer;
-    transition: background 0.2s, transform 0.12s;
-    display: flex; align-items: center; justify-content: center;
-    -webkit-tap-highlight-color: transparent;
-  }
-  #bot-toggle.active { background: rgba(80,200,120,0.92); transform: scale(1.08); }
-  #bot-toggle:hover  { transform: scale(1.12); }
-  #bot-panel {
-    position: fixed; bottom: 148px; right: 10px; z-index: 8999;
-    width: 210px;
-    background: rgba(20,20,30,0.82); backdrop-filter: blur(8px);
-    border-radius: 14px; padding: 12px 14px 10px;
-    color: #e0f0ff; font-family: 'Segoe UI', sans-serif;
-    font-size: 12px; line-height: 1.55; display: none;
-    box-shadow: 0 4px 18px rgba(0,0,0,0.35); pointer-events: none;
-  }
-  #bot-panel.show { display: block; }
-  #bot-panel h4   { margin: 0 0 7px; font-size: 13px; color: #a0e0b0; letter-spacing: 0.04em; }
-  #bot-action     { color: #ffffff; font-weight: 600; }
-  #bot-reason     { color: #b8d8f0; opacity: 0.85; }
-  #bot-stats      { margin-top: 7px; color: #c0d8e8; border-top: 1px solid rgba(255,255,255,0.12); padding-top: 7px; }
-  .bot-log-line      { padding: 1px 0; }
-  .bot-log-line.good { color: #80eea0; }
-  .bot-log-line.miss { color: #f0a080; }
-  .bot-log-line.swap { color: #a0c8f8; }
-</style>
-
-<button id="bot-toggle" title="Toggle Bot Mode">&#x1F916;</button>
-<div id="bot-panel">
-  <h4>&#x1F916; Bot is playing</h4>
-  <div id="bot-action">Thinking...</div>
-  <div id="bot-reason"></div>
-  <div id="bot-stats"></div>
-  <div id="bot-log" style="margin-top:6px;max-height:80px;overflow:hidden;"></div>
-</div>
-
-<script>
-(function () {
-  var BOT_INTERVAL_MS = 2200;
-  var botActive = false;
-  var botTimer  = null;
-  var botLog    = [];
-
-  var toggleBtn = document.getElementById('bot-toggle');
-  var panel     = document.getElementById('bot-panel');
-  var elAction  = document.getElementById('bot-action');
-  var elReason  = document.getElementById('bot-reason');
-  var elStats   = document.getElementById('bot-stats');
-  var elLog     = document.getElementById('bot-log');
-
-  function colorLabel(ci) {
-    return (['Red','Blue','Green','Orange','Purple','White'][ci]) || ('Color' + ci);
-  }
-
-  function addLog(msg, cls) {
-    botLog.unshift({ msg: msg, cls: cls });
-    if (botLog.length > 6) botLog.pop();
-    elLog.innerHTML = botLog.slice(0, 4).map(function(e) {
-      return '<div class="bot-log-line ' + (e.cls || '') + '">' + e.msg + '</div>';
-    }).join('');
-  }
-
-  function updatePanel(action, reason) {
-    elAction.textContent = action;
-    elReason.textContent = reason;
-    var alive  = (typeof blocks    !== 'undefined') ? blocks.filter(function(b){ return b.alive; }).length : '?';
-    var shots  = (typeof shotsLeft !== 'undefined') ? shotsLeft : '?';
-    var filled = (typeof carts     !== 'undefined')
-      ? carts.reduce(function(s,c){ return s + c.slots.filter(function(x){ return x !== null; }).length; }, 0)
-      : '?';
-    elStats.textContent = 'Shots: ' + shots + '  Blocks: ' + alive + '  Filled: ' + filled;
-  }
-
-  function botStep() {
-    if (typeof currentBlock === 'undefined' || typeof blocks === 'undefined') return;
-    if (typeof proj !== 'undefined' && proj.active) return;
-    if (typeof levelLocked !== 'undefined' && levelLocked) { stopBot('Level locked'); return; }
-    if (typeof shotsLeft   !== 'undefined' && shotsLeft <= 0) { stopBot('Out of shots'); return; }
-
-    var alive = blocks.filter(function(b){ return b.alive; });
-    if (!alive.length) { stopBot('All blocks cleared!'); return; }
-
-    var colorCount = {};
-    alive.forEach(function(b) { colorCount[b.colorIdx] = (colorCount[b.colorIdx] || 0) + 1; });
-
-    var curCI  = currentBlock.colorIdx;
-    var nxtCI  = (typeof nextBlock !== 'undefined') ? nextBlock.colorIdx : -1;
-    var curCnt = colorCount[curCI] || 0;
-    var nxtCnt = colorCount[nxtCI] || 0;
-
-    var didSwap = false;
-    if (curCnt === 0 && nxtCnt > 0) {
-      if (typeof swapToNext === 'function') swapToNext();
-      didSwap = true;
-      addLog('Swap -> ' + colorLabel(nxtCI) + ' (' + nxtCnt + ')', 'swap');
-      updatePanel('Swap to ' + colorLabel(nxtCI), 'Current color exhausted');
-    } else if (nxtCnt > curCnt + 1 && curCnt < 3) {
-      if (typeof swapToNext === 'function') swapToNext();
-      didSwap = true;
-      addLog('Swap ' + colorLabel(curCI) + '->' + colorLabel(nxtCI) + ' +' + (nxtCnt - curCnt), 'swap');
-      updatePanel('Swap to ' + colorLabel(nxtCI), '+' + (nxtCnt - curCnt) + ' more targets');
-    }
-
-    var fireCI  = (typeof currentBlock !== 'undefined') ? currentBlock.colorIdx : curCI;
-    var targets = alive.filter(function(b){ return b.colorIdx === fireCI; });
-    var target  = targets.length
-      ? targets[Math.floor(Math.random() * targets.length)]
-      : alive[Math.floor(Math.random() * alive.length)];
-
-    if (!target || !target.mesh) return;
-
-    if (!didSwap) {
-      if (targets.length > 0) {
-        addLog('Fire ' + colorLabel(fireCI) + ' x' + targets.length, 'good');
-        updatePanel('Fire ' + colorLabel(fireCI), targets.length + ' target(s)');
-      } else {
-        addLog('Fire (no match)', 'miss');
-        updatePanel('Fire (forced)', 'No ' + colorLabel(fireCI) + ' blocks left');
-      }
-    }
-
-    var worldPos = new THREE.Vector3();
-    target.mesh.getWorldPosition(worldPos);
-    var p2 = worldPos.clone().project(camera);
-    var sx = ( p2.x + 1) / 2 * window.innerWidth;
-    var sy = (-p2.y + 1) / 2 * window.innerHeight;
-
-    if (typeof fireLob === 'function') fireLob(sx, sy);
-  }
-
-  function startBot() {
-    botActive = true;
-    botLog    = [];
-    toggleBtn.classList.add('active');
-    panel.classList.add('show');
-    updatePanel('Starting...', 'Bot is in control');
-    botTimer = setTimeout(function tick() {
-      if (!botActive) return;
-      botStep();
-      botTimer = setTimeout(tick, BOT_INTERVAL_MS);
-    }, 600);
-  }
-
-  function stopBot(reason) {
-    botActive = false;
-    clearTimeout(botTimer);
-    botTimer = null;
-    toggleBtn.classList.remove('active');
-    updatePanel('Stopped', reason || 'Bot off');
-    addLog('Stopped: ' + (reason || 'manual'), '');
-    setTimeout(function(){ if (!botActive) panel.classList.remove('show'); }, 3000);
-  }
-
-  function toggleBot() {
-    if (botActive) stopBot(); else startBot();
-  }
-
-  toggleBtn.addEventListener('click', toggleBot);
-  toggleBtn.addEventListener('touchend', function(e){ e.preventDefault(); toggleBot(); }, { passive: false });
-
-  window.botStart = startBot;
-  window.botStop  = function(){ stopBot('console'); };
 })();
 </script>
 
