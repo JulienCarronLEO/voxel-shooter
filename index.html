@@ -1354,35 +1354,69 @@ function beltPosFromS(s) {
 }
 
 // ── Visual belt mesh (oval frame) ──────────────────────────────────────────
+// ── Transparent GLASS CAPSULE shell (replaces the steel frame) ──────────────
+// Purely cosmetic: beltPosFromS() and all block movement are unchanged. A
+// stadium/lozenge prism encloses the oval loop, so the upper+lower runs of
+// blocks read as two rows of items inside a clear tube (per the art mockup).
 const beltGroup = new THREE.Group();
 {
-  // Two horizontal strips for the upper and lower runs
-  const stripGeo = new THREE.BoxGeometry(BELT_STR, 0.08, BELT_DEPTH);
-  const stripMat = new THREE.MeshPhongMaterial({ color: 0xd0d8de, shininess: 80 }); // brushed stainless steel
-  const upper = new THREE.Mesh(stripGeo, stripMat);
-  upper.position.set(0, BELT_TOP_Y - 0.04, 0);
-  const lower = new THREE.Mesh(stripGeo, stripMat);
-  lower.position.set(0, BELT_BOT_Y + 0.04, 0);
-  beltGroup.add(upper); beltGroup.add(lower);
-  // Pulley end caps (cylinders with axis along Z)
-  const pGeo = new THREE.CylinderGeometry(BELT_R, BELT_R, BELT_DEPTH, 24);
-  pGeo.rotateX(Math.PI/2);
-  const pMat = new THREE.MeshPhongMaterial({ color: 0x7d8a96, shininess: 90 }); // polished steel pulley
-  const pL = new THREE.Mesh(pGeo, pMat);
-  pL.position.set(-BELT_STR/2, BELT_CENTRE_Y, 0);
-  const pR = new THREE.Mesh(pGeo, pMat);
-  pR.position.set(+BELT_STR/2, BELT_CENTRE_Y, 0);
-  beltGroup.add(pL); beltGroup.add(pR);
-  // Subtle surface stripes on the upper run so movement is readable
-  for(let i = 0; i < 12; i++) {
-    const stripe = new THREE.Mesh(
-      new THREE.BoxGeometry(0.10, 0.09, BELT_DEPTH * 0.9),
-      new THREE.MeshBasicMaterial({ color: 0x9aa5b0 }) // steel detail stripe
-    );
-    stripe.position.set(-BELT_STR/2 + i * (BELT_STR/12) + 0.3, BELT_TOP_Y + 0.01, 0);
-    stripe.userData = { stripe:true, stripeS: i * (BELT_STR/12) };
-    beltGroup.add(stripe);
-  }
+  const GLASS_A     = BELT_STR / 2;        // straight half-length; caps centred at ±A
+  const GLASS_R     = BELT_R + 0.30;       // capsule half-height / cap radius (clearance over blocks)
+  const GLASS_DEPTH = BELT_DEPTH + 0.22;   // front-to-back depth
+  const GLASS_Y     = BELT_CENTRE_Y;       // vertical centre of the loop
+
+  // Stadium outline: top/bottom straight edges + two semicircular end caps.
+  const sh = new THREE.Shape();
+  sh.moveTo(GLASS_A, GLASS_R);
+  sh.lineTo(-GLASS_A, GLASS_R);
+  sh.absarc(-GLASS_A, 0, GLASS_R, Math.PI / 2, Math.PI * 1.5, false); // left cap
+  sh.lineTo(GLASS_A, -GLASS_R);
+  sh.absarc(GLASS_A, 0, GLASS_R, -Math.PI / 2, Math.PI / 2, false);   // right cap
+
+  const glassGeo = new THREE.ExtrudeGeometry(sh, {
+    depth: GLASS_DEPTH,
+    bevelEnabled: true,
+    bevelThickness: 0.05,
+    bevelSize: 0.05,
+    bevelSegments: 3,
+    curveSegments: 32
+  });
+  glassGeo.translate(0, 0, -GLASS_DEPTH / 2); // centre in Z
+
+  // Stylised glass: faint cool tint, strong speculars, see-through body.
+  const glassMat = new THREE.MeshPhongMaterial({
+    color: 0xe8f3ff,
+    specular: 0xffffff,
+    shininess: 110,
+    reflectivity: 0.4,
+    transparent: true,
+    opacity: 0.20,
+    side: THREE.DoubleSide,
+    depthWrite: false
+  });
+  const glassMesh = new THREE.Mesh(glassGeo, glassMat);
+  glassMesh.position.set(0, GLASS_Y, 0);
+  glassMesh.renderOrder = 5; // after opaque blocks
+  beltGroup.add(glassMesh);
+
+  // Crisp white rim on the front (and a fainter one on the back) sells the edge.
+  const rimPts = sh.getPoints(96).map(p => new THREE.Vector3(p.x, p.y, 0));
+  const rimGeo = new THREE.BufferGeometry().setFromPoints(rimPts);
+  const frontRim = new THREE.LineLoop(rimGeo, new THREE.LineBasicMaterial({
+    color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false
+  }));
+  frontRim.position.set(0, GLASS_Y, GLASS_DEPTH / 2 + 0.02);
+  frontRim.renderOrder = 6;
+  const backRim = new THREE.LineLoop(rimGeo, new THREE.LineBasicMaterial({
+    color: 0xffffff, transparent: true, opacity: 0.26, depthWrite: false
+  }));
+  backRim.position.set(0, GLASS_Y, -GLASS_DEPTH / 2 - 0.02);
+  backRim.renderOrder = 6;
+  beltGroup.add(frontRim); beltGroup.add(backRim);
+
+  // Live-tuning handle for art-direction passes (opacity/tint/size).
+  window.__glass = { mesh: glassMesh, mat: glassMat, frontRim, backRim, group: beltGroup,
+                     A: GLASS_A, R: GLASS_R, depth: GLASS_DEPTH, y: GLASS_Y };
 }
 scene.add(beltGroup);
 
@@ -2517,7 +2551,8 @@ const MODEL_PATHS = {
   // Props (generated via Higgsfield/Meshy). Untextured ones are tinted in-game.
   'cart':   'models/cart.glb',    // untextured — tinted per cart colour
   'core':   'models/core.glb',    // textured gold crystal
-  'belt':   'models/belt.glb',    // textured steel/rubber
+  // 'belt' retired — the conveyor shell is now the procedural glass capsule
+  // (frees the 5.1 MB steel model from the mobile download).
 };
 
 // Apply a per-colour tint material to a cloned cube template.
