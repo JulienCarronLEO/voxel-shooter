@@ -9,7 +9,7 @@
 #goal-ui, #goal-label, #goal-canvas, #goal-debug-label, #star-counter, #combo, #score, #core-msg, #charge-msg, #hint, #goal-celebration, #goal-celebration-star, #goal-celebration-text, #goal-celebration-sub, #fire-debug, #level-badge, #lives-ui { display: none !important; }
 
 * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; -webkit-user-select: none; }
-html, body { width: 100%; height: 100%; overflow: hidden; background: linear-gradient(180deg, #fbe9df 0%, #f8ddd0 50%, #f3cdbd 100%); }
+html, body { width: 100%; height: 100%; overflow: hidden; background: linear-gradient(180deg, #f5fafd 0%, #e3eef5 55%, #cfdfeb 100%); }
 canvas#threeCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: block; background: #000010; }
 #trajectoryCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
 #score { display: none; position: fixed; top: 18px; left: 50%; transform: translateX(-50%); font-family: -apple-system, sans-serif; font-size: 26px; font-weight: 700; color: white; text-shadow: 0 2px 8px rgba(0,0,0,0.3); pointer-events: none; z-index: 10; }
@@ -1031,7 +1031,7 @@ window.addEventListener('resize', () => {
 // Gradient sky via a large sphere
 // ── Space background — Points-based star field ───────────────────────────────
 // Deep space background color
-scene.background = new THREE.Color(0xfbe4d8); // warm peach toy-box interior
+scene.background = new THREE.Color(0xeaf2f8); // bright lab interior
 
 // ── Star field using THREE.Points ────────────────────────────────────────────
 function makeStarField(count, radius, minSize, maxSize, minBright, maxBright) {
@@ -1180,8 +1180,8 @@ ambientGlow.position.set(0,0,0); scene.add(ambientGlow);
 
 // ── Early hoisted constants (needed by funnel + belt setup below) ─────────
 const SP        = 0.40;
-const COLORS    = [0xf2796b, 0x7b9fe0, 0x6ec9a8, 0xf4a261, 0xc77dff, 0xf7f3ee]; // soft matte pastels (coral, periwinkle, mint, peach-orange, lilac, cream)
-const COLOR_HEX = ['#f2796b','#7b9fe0','#6ec9a8','#f4a261','#c77dff','#f7f3ee']; // soft matte pastels (match COLORS)
+const COLORS    = [0xe74c3c, 0x2980ff, 0x27ae60, 0xf39c12, 0x9b59b6, 0xeeeeee];
+const COLOR_HEX = ['#e74c3c','#2980ff','#27ae60','#f39c12','#9b59b6','#eeeeee'];
 
 const pivot = new THREE.Group();
 pivot.position.y = 1.3; // baked (was 0.5, +0.8 from dev panel)
@@ -1194,10 +1194,25 @@ const FUNNEL_TOP_R    = 2.6;    // wide mouth radius (covers full cluster footpr
 const FUNNEL_BOTTOM_R = 0.45;   // narrow end radius
 const funnelGroup = new THREE.Group();
 {
-  // Procedural funnel cone — now HIDDEN. The catch area is represented by the soft
-  // dimple shadow on the background instead. We keep funnelGroup (empty) so the rest
-  // of the code that references it still works; the physics pile bowl is separate.
-  // (Cone construction removed; funnelGroup stays empty and invisible.)
+  const funnelGeo = new THREE.CylinderGeometry(
+    FUNNEL_TOP_R, FUNNEL_BOTTOM_R,
+    FUNNEL_TOP_Y - FUNNEL_BOTTOM_Y, 32, 1, true);
+  const funnelMat = new THREE.MeshBasicMaterial({
+    color: 0xa8d0e0,         // cyan-tinted laboratory glass
+    transparent: true,
+    opacity: 0.32,
+    side: THREE.DoubleSide,
+    wireframe: false
+  });
+  const funnelMesh = new THREE.Mesh(funnelGeo, funnelMat);
+  funnelMesh.position.y = (FUNNEL_TOP_Y + FUNNEL_BOTTOM_Y) / 2;
+  funnelGroup.add(funnelMesh);
+  // Wireframe rim so the funnel's edges are visible
+  const rimGeo = new THREE.EdgesGeometry(funnelGeo);
+  const rimMat = new THREE.LineBasicMaterial({ color:0xffffff, transparent:true, opacity:0.45 });
+  const rim = new THREE.LineSegments(rimGeo, rimMat);
+  rim.position.y = funnelMesh.position.y;
+  funnelGroup.add(rim);
 }
 scene.add(funnelGroup);
 
@@ -1222,62 +1237,6 @@ scene.add(funnelGroup);
   shadowPlane.position.set(0, -0.75, 0);  // just below the cluster
   shadowPlane.renderOrder = -1; // render before cluster
   scene.add(shadowPlane);
-}
-
-// === Soft CATCH DIMPLE — a recessed-looking depression in the peach surface ===
-// Replaces the floating basin prop. A flat, soft-edged ellipse tinted slightly
-// darker/warmer than the background, billboarded to face the camera so it reads
-// as a gentle dent where cubes gather. Purely visual; the physics bowl is unchanged.
-{
-  const dimpleCanvas = document.createElement('canvas');
-  dimpleCanvas.width = 512; dimpleCanvas.height = 320;
-  const dctx = dimpleCanvas.getContext('2d');
-  // A soft, warm, FAINT oval that reads as a gentle shaded hollow directly under
-  // the cube cluster — not a dark blob. Warm peach tones only, low opacity, with a
-  // soft lighter rim so it suggests a shallow dent rather than a floating smudge.
-  const cx = 256, cy = 160;
-  // Squash the gradient vertically by drawing into a scaled context for an ellipse
-  dctx.save();
-  dctx.translate(cx, cy);
-  dctx.scale(1.0, 0.52);   // flatten into a wide shallow ellipse
-  const g1 = dctx.createRadialGradient(0, 0, 0, 0, 0, 230);
-  g1.addColorStop(0.0,  'rgba(225, 170, 148, 0.30)');  // gentle warm hollow centre
-  g1.addColorStop(0.45, 'rgba(232, 184, 164, 0.18)');
-  g1.addColorStop(0.75, 'rgba(243, 205, 189, 0.06)');
-  g1.addColorStop(1.0,  'rgba(243, 205, 189, 0.0)');
-  dctx.fillStyle = g1;
-  dctx.beginPath();
-  dctx.arc(0, 0, 230, 0, Math.PI * 2);
-  dctx.fill();
-  dctx.restore();
-  // Soft lighter rim near the top to imply the lip of a shallow dent
-  dctx.save();
-  dctx.translate(cx, cy);
-  dctx.scale(1.0, 0.52);
-  const g2 = dctx.createRadialGradient(0, -10, 150, 0, -10, 215);
-  g2.addColorStop(0.0,  'rgba(255, 248, 240, 0.0)');
-  g2.addColorStop(0.65, 'rgba(255, 250, 244, 0.10)');
-  g2.addColorStop(1.0,  'rgba(255, 250, 244, 0.0)');
-  dctx.fillStyle = g2;
-  dctx.beginPath();
-  dctx.arc(0, -10, 215, 0, Math.PI * 2);
-  dctx.fill();
-  dctx.restore();
-
-  const dimpleTex = new THREE.CanvasTexture(dimpleCanvas);
-  const dimpleMat = new THREE.MeshBasicMaterial({
-    map: dimpleTex, transparent: true, depthWrite: false, depthTest: false
-  });
-  // Small soft ellipse sitting right under the cube cluster
-  const dimple = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 1.9), dimpleMat);
-  // Tuck it just under the cluster centre so cubes hover over a soft hollow
-  dimple.position.set(0, FUNNEL_TOP_Y - 0.35, -0.3);
-  dimple.renderOrder = -2; // behind the cubes
-  scene.add(dimple);
-  // Keep it facing the camera each frame (billboard) so it always reads flat
-  if(typeof window !== 'undefined') {
-    window._catchDimple = dimple;
-  }
 }
 
 // ── Conveyor oval loop ─────────────────────────────────────────────────────
@@ -2517,6 +2476,7 @@ const MODEL_PATHS = {
   // Props (generated via Higgsfield/Meshy). Untextured ones are tinted in-game.
   'cart':   'models/cart.glb',    // untextured — tinted per cart colour
   'core':   'models/core.glb',    // textured gold crystal
+  'funnel': 'models/funnel.glb',  // untextured — tinted glass cyan
   'belt':   'models/belt.glb',    // textured steel/rubber
 };
 
@@ -2579,14 +2539,20 @@ function refreshCartVisuals() {
   if(n > 0) console.log('Cart visuals upgraded to model:', n);
 }
 
-// Swap the funnel for the wide shallow CATCH BASIN model (abstract, soft).
-// The basin is wide (to catch scattered blocks) and shallow, sitting just above the belt.
+// Swap the funnel cone for the model (tinted lab glass).
 function applyFunnelModel() {
-  // Basin prop removed — the catch area is now a soft dimple shadow on the
-  // background (see makeCatchDimple). Cubes still pile via the invisible physics
-  // bowl and drain to the belt. Clear any leftover funnel children.
-  if(typeof funnelGroup !== 'undefined') {
-    [...funnelGroup.children].forEach(ch => funnelGroup.remove(ch));
+  if(!MODEL_TEMPLATES['funnel'] || typeof funnelGroup === 'undefined') return;
+  [...funnelGroup.children].forEach(ch => funnelGroup.remove(ch));
+  const mat = new THREE.MeshLambertMaterial({
+    color: 0xa8d0e0, transparent: true, opacity: 0.35, side: THREE.DoubleSide
+  });
+  const w = FUNNEL_TOP_R * 2;
+  const h = FUNNEL_TOP_Y - FUNNEL_BOTTOM_Y;
+  const clone = clonePropTemplate('funnel', w, h, w, { material: mat });
+  if(clone) {
+    clone.position.y = (FUNNEL_TOP_Y + FUNNEL_BOTTOM_Y) / 2;
+    funnelGroup.add(clone);
+    console.log('Funnel upgraded to model');
   }
 }
 
@@ -2600,31 +2566,9 @@ function applyBeltModel() {
   const h = (BELT_TOP_Y - BELT_BOT_Y) + 0.16;
   const clone = clonePropTemplate('belt', w, h, BELT_DEPTH * 1.4, {});
   if(clone) {
-    // Soften the dark chrome: lighten + warm-tint the baked texture so it fits the
-    // pastel palette while keeping roller/frame detail. We multiply the texture by a
-    // soft warm grey and lift it with emissive so blacks become soft greys.
-    clone.traverse(obj => {
-      if(obj.isMesh && obj.material) {
-        const m = obj.material;
-        // Tint toward warm cream-grey
-        if(m.color) m.color.setHex(0xe8e0d6);
-        // Strongly lift dark areas so the near-black belt band reads as soft grey.
-        // Higher emissive + intensity floods the blacks up toward cream.
-        if(m.emissive !== undefined) {
-          m.emissive = new THREE.Color(0xb8aea2);
-          if('emissiveIntensity' in m) m.emissiveIntensity = 0.6;
-        }
-        // Kill specular shine so it's matte like the rest of the scene
-        if('shininess' in m) m.shininess = 4;
-        if('specular' in m && m.specular) m.specular.setHex(0x222222);
-        if('metalness' in m) m.metalness = 0.0;
-        if('roughness' in m) m.roughness = 0.95;
-        m.needsUpdate = true;
-      }
-    });
     clone.position.y = BELT_CENTRE_Y;
     beltGroup.add(clone);
-    console.log('Belt upgraded to model (softened tint)');
+    console.log('Belt upgraded to model');
   }
 }
 
@@ -5406,8 +5350,6 @@ function animate() {
 
   // Animate space sky
   if(cacheFrame % 2 === 0) skyMat.uniforms.time.value += dt * 1.6; // update every other frame
-  // Keep the catch dimple facing the camera so it always reads as a flat dent
-  if(window._catchDimple) window._catchDimple.quaternion.copy(camera.quaternion);
   if(composer) composer.render(); else renderer.render(scene,camera);
 }
 animate();
