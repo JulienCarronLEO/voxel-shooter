@@ -1299,7 +1299,7 @@ const CART_COUNT   = 2;    // 2 active carts per row (plus 2 queue carts below)
 // Belt oval geometry
 const BELT_R        = 0.275;                      // pulley radius (halved — visual knobs are smaller)
 const BELT_GAP      = BELT_R * 2;                 // = 0.55, must equal pulley diameter for smooth arc transitions
-const BELT_TOP_Y    = -2.4;                       // baked: +0.7 then +0.4 = +1.1 total
+const BELT_TOP_Y    = -1.4;                       // raised +1.0 to close the gap to the cluster/funnel
 const BELT_BOT_Y    = BELT_TOP_Y - BELT_GAP;      // lower surface world Y
 const BELT_CENTRE_Y = (BELT_TOP_Y + BELT_BOT_Y) / 2; // pulley centre Y
 const BELT_STR      = 3.0;                        // belt length (shrunk for 2 carts)
@@ -1353,37 +1353,71 @@ function beltPosFromS(s) {
   };
 }
 
-// ── Recessed backdrop niche (darker rounded panel behind the tube) ──────────
-// Frames the glass capsule against a deeper peach so the tube reads clearly
-// even when empty (matches the art-direction recess). Flat, unlit, cosmetic.
+// ── Recessed backdrop niche (gradient-shaded pocket behind tube + carts) ─────
+// A canvas-painted rounded panel with baked depth shading — dark under the top
+// lip, soft edge vignette, lighter toward the opening — so it reads as a real
+// inset pocket rather than a flat sticker. Sized to contain BOTH the tube and
+// the carts. Flat, unlit; the shading is all painted into the texture.
 {
-  function roundedRectShape(w, h, r){
-    const x = -w/2, y = -h/2;
-    const s = new THREE.Shape();
-    s.moveTo(x + r, y);
-    s.lineTo(x + w - r, y);            s.quadraticCurveTo(x + w, y, x + w, y + r);
-    s.lineTo(x + w, y + h - r);        s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    s.lineTo(x + r, y + h);            s.quadraticCurveTo(x, y + h, x, y + h - r);
-    s.lineTo(x, y + r);                s.quadraticCurveTo(x, y, x + r, y);
-    return s;
+  // Default gradient parameters (tunable live via __niche.repaint).
+  const NICHE_GRAD = {
+    base: '#e4bcac',          // mid peach (darker than bg 0xfbe4d8)
+    topShadow: 0.50,          // darkness under the top lip (depth)
+    topShadowSpan: 0.70,      // how far down the top shadow reaches (0..1)
+    bottomLift: 0.12,         // light pooling toward the opening
+    edgeVignette: 0.26        // darkening toward the rim
+  };
+  function paintNiche(wPx, hPx, radPx, g){
+    const cv = document.createElement('canvas'); cv.width = wPx; cv.height = hPx;
+    const c = cv.getContext('2d');
+    const rr = (x,y,w,h,r) => { c.beginPath(); c.moveTo(x+r,y);
+      c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r);
+      c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); };
+    rr(0,0,wPx,hPx,radPx); c.fillStyle = g.base; c.fill();
+    c.save(); rr(0,0,wPx,hPx,radPx); c.clip();
+    // Deepest under the top lip, fading down — the core "depth" cue.
+    let gt = c.createLinearGradient(0,0,0,hPx*g.topShadowSpan);
+    gt.addColorStop(0, `rgba(112,64,50,${g.topShadow})`);
+    gt.addColorStop(1, 'rgba(112,64,50,0)');
+    c.fillStyle = gt; c.fillRect(0,0,wPx,hPx);
+    // Opening (bottom) catches a little light.
+    let gb = c.createLinearGradient(0,hPx,0,hPx*0.5);
+    gb.addColorStop(0, `rgba(255,238,226,${g.bottomLift})`);
+    gb.addColorStop(1, 'rgba(255,238,226,0)');
+    c.fillStyle = gb; c.fillRect(0,0,wPx,hPx);
+    // Edge vignette — walls of the pocket fall into shadow.
+    let gv = c.createRadialGradient(wPx/2,hPx*0.42,Math.min(wPx,hPx)*0.18,
+                                    wPx/2,hPx*0.42,Math.max(wPx,hPx)*0.60);
+    gv.addColorStop(0,'rgba(92,55,45,0)');
+    gv.addColorStop(1,`rgba(92,55,45,${g.edgeVignette})`);
+    c.fillStyle = gv; c.fillRect(0,0,wPx,hPx);
+    c.restore();
+    return cv;
   }
-  const NICHE_W = 4.6, NICHE_H = 2.2, NICHE_R = 0.34;
-  // Sit lower than the loop centre: the panel is 0.55 behind the tube, and the
-  // down-tilted camera (y=4, z≈9) makes that back plane project higher on screen.
-  // Dropping the panel ~0.24 cancels the parallax so the tube reads fully framed.
-  const NICHE_Y = -3.06;
-  const NICHE_Z = -0.55;                // behind the tube (tube back ≈ -0.47)
-  const nicheGeo = new THREE.ShapeGeometry(roundedRectShape(NICHE_W, NICHE_H, NICHE_R));
-  const nicheMat = new THREE.MeshBasicMaterial({ color: 0xe4bcac }); // darker than bg 0xfbe4d8
-  const nicheMesh = new THREE.Mesh(nicheGeo, nicheMat);
+
+  const NICHE_W = 4.8, NICHE_H = 3.5, NICHE_Z = -0.55;
+  // Centre between the tube top and the carts bottom, then dropped to cancel the
+  // camera parallax (back plane projects ~0.24 high). Relative to the loop so it
+  // follows if the belt height changes.
+  const NICHE_Y = BELT_CENTRE_Y - 1.025;
+  const aspect = NICHE_W / NICHE_H;
+  const hPx = 768, wPx = Math.round(hPx * aspect);
+  const radPx = Math.round(0.34 / NICHE_W * wPx);
+  const nicheTex = new THREE.CanvasTexture(paintNiche(wPx, hPx, radPx, NICHE_GRAD));
+  nicheTex.anisotropy = 4;
+  const nicheMat = new THREE.MeshBasicMaterial({ map: nicheTex, transparent: true, depthWrite: false });
+  const nicheMesh = new THREE.Mesh(new THREE.PlaneGeometry(NICHE_W, NICHE_H), nicheMat);
   nicheMesh.position.set(0, NICHE_Y, NICHE_Z);
   nicheMesh.renderOrder = -1;           // backmost panel
   scene.add(nicheMesh);
 
-  // Live-tuning handle (colour + position now; size via rebuild).
-  window.__niche = { mesh: nicheMesh, mat: nicheMat,
-                     setColor: (hex) => nicheMat.color.setHex(hex),
-                     pos: (x, y, z) => nicheMesh.position.set(x, y, z) };
+  // Live-tuning handle: repaint the gradient or move the panel without a rebuild.
+  window.__niche = {
+    mesh: nicheMesh, mat: nicheMat, tex: nicheTex, grad: NICHE_GRAD,
+    repaint: (opts) => { Object.assign(NICHE_GRAD, opts || {});
+      nicheTex.image = paintNiche(wPx, hPx, radPx, NICHE_GRAD); nicheTex.needsUpdate = true; },
+    pos: (x, y, z) => nicheMesh.position.set(x, y, z)
+  };
 }
 
 // ── Visual belt mesh (oval frame) ──────────────────────────────────────────
