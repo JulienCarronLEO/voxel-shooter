@@ -1280,6 +1280,49 @@ scene.add(funnelGroup);
   }
 }
 
+// === VISUAL CATCH BASIN — dished bowl on the box top, funnels into the niche ===
+// A real lathe-turned bowl (true dimensional form) with a centre hole, sitting
+// under the cluster. Shaded via a baked gradient on an UNLIT material rather than
+// scene lights: the cluster's gold core light + bloom would blow out a lit surface
+// here. Reads as a shallow dish the sculpture drops blocks into, which then feed
+// down through the hole into the tube/cart niche below (matches art direction).
+{
+  function basinShadeTex(){
+    const cv = document.createElement('canvas'); cv.width = 8; cv.height = 256;
+    const c = cv.getContext('2d');
+    const g = c.createLinearGradient(0, 0, 0, 256);   // maps along the lathe profile
+    g.addColorStop(0.00, 'rgb(188,138,118)');  // outer roll (curves away) — darker
+    g.addColorStop(0.30, 'rgb(214,164,142)');
+    g.addColorStop(0.55, 'rgb(249,221,201)');  // rim crest — lightest (catches light)
+    g.addColorStop(0.80, 'rgb(225,176,154)');
+    g.addColorStop(1.00, 'rgb(198,146,126)');  // hole edge — shaded
+    c.fillStyle = g; c.fillRect(0, 0, 8, 256);
+    return new THREE.CanvasTexture(cv);
+  }
+  // profile [radius, height]: inner hole edge -> dish -> rim crest -> rolled outer lip
+  const BASIN_PROF = [
+    [0.50, -0.20], [0.95, -0.15], [1.40, -0.06], [1.80, -0.01],
+    [2.10,  0.00], [2.30, -0.04], [2.45, -0.18]
+  ].map(p => new THREE.Vector2(p[0], p[1]));
+  const basinGeo = new THREE.LatheGeometry(BASIN_PROF, 72);
+  const basinTex = basinShadeTex();
+  const basinMat = new THREE.MeshBasicMaterial({ map: basinTex, side: THREE.DoubleSide });
+  const basin = new THREE.Mesh(basinGeo, basinMat);
+  basin.position.set(0, -0.12, 0);    // just under the cluster, above the niche
+  basin.renderOrder = -1;
+  scene.add(basin);
+
+  // The flat dimple is superseded by this dimensional basin.
+  if (window._catchDimple) window._catchDimple.visible = false;
+
+  // Live-tuning handle: reposition / rescale without a rebuild.
+  window.__basin = {
+    mesh: basin, mat: basinMat, tex: basinTex,
+    pos: (x, y, z) => basin.position.set(x, y, z),
+    scale: (s) => basin.scale.setScalar(s)
+  };
+}
+
 // ── Conveyor oval loop ─────────────────────────────────────────────────────
 // Layout in world coordinates:
 //   - Upper run sits at y = BELT_TOP_Y (blocks land here from the funnel)
