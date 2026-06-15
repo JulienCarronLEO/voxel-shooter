@@ -1353,6 +1353,36 @@ function beltPosFromS(s) {
   };
 }
 
+// ── Recessed backdrop niche (darker rounded panel behind the tube) ──────────
+// Frames the glass capsule against a deeper peach so the tube reads clearly
+// even when empty (matches the art-direction recess). Flat, unlit, cosmetic.
+{
+  function roundedRectShape(w, h, r){
+    const x = -w/2, y = -h/2;
+    const s = new THREE.Shape();
+    s.moveTo(x + r, y);
+    s.lineTo(x + w - r, y);            s.quadraticCurveTo(x + w, y, x + w, y + r);
+    s.lineTo(x + w, y + h - r);        s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    s.lineTo(x + r, y + h);            s.quadraticCurveTo(x, y + h, x, y + h - r);
+    s.lineTo(x, y + r);                s.quadraticCurveTo(x, y, x + r, y);
+    return s;
+  }
+  const NICHE_W = 4.6, NICHE_H = 1.55, NICHE_R = 0.34;
+  const NICHE_Y = BELT_CENTRE_Y;        // centred on the loop
+  const NICHE_Z = -0.55;                // behind the tube (tube back ≈ -0.47)
+  const nicheGeo = new THREE.ShapeGeometry(roundedRectShape(NICHE_W, NICHE_H, NICHE_R));
+  const nicheMat = new THREE.MeshBasicMaterial({ color: 0xefc7b4 }); // darker than bg 0xfbe4d8
+  const nicheMesh = new THREE.Mesh(nicheGeo, nicheMat);
+  nicheMesh.position.set(0, NICHE_Y, NICHE_Z);
+  nicheMesh.renderOrder = -1;           // backmost panel
+  scene.add(nicheMesh);
+
+  // Live-tuning handle (colour + position now; size via rebuild).
+  window.__niche = { mesh: nicheMesh, mat: nicheMat,
+                     setColor: (hex) => nicheMat.color.setHex(hex),
+                     pos: (x, y, z) => nicheMesh.position.set(x, y, z) };
+}
+
 // ── Visual belt mesh (oval frame) ──────────────────────────────────────────
 // ── Transparent GLASS CAPSULE shell (replaces the steel frame) ──────────────
 // Purely cosmetic: beltPosFromS() and all block movement are unchanged. A
