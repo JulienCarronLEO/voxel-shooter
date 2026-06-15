@@ -1361,8 +1361,11 @@ function beltPosFromS(s) {
 const beltGroup = new THREE.Group();
 {
   const GLASS_A     = BELT_STR / 2;        // straight half-length; caps centred at ±A
-  const GLASS_R     = BELT_R + 0.30;       // capsule half-height / cap radius (clearance over blocks)
-  const GLASS_DEPTH = BELT_DEPTH + 0.22;   // front-to-back depth
+  // Hug the two rows: blocks (0.30 cubes) reach ±(BELT_R + 0.15) = ±0.425 from
+  // the loop centre. Cap radius = that + a thin 0.065 glass margin, so the tube
+  // reads snug and full instead of a hollow oversized slab.
+  const GLASS_R     = BELT_R + 0.215;      // ≈0.49 capsule half-height / cap radius
+  const GLASS_DEPTH = BELT_DEPTH + 0.16;   // front-to-back depth (trimmed from 0.22)
   const GLASS_Y     = BELT_CENTRE_Y;       // vertical centre of the loop
 
   // Stadium outline: top/bottom straight edges + two semicircular end caps.
