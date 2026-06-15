@@ -1,2 +1,9 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Never apply text/EOL normalization to binary assets
+*.glb binary
+*.png binary
+
+# Keep web source consistent
+*.html text eol=lf
