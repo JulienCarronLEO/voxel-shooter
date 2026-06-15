@@ -1367,11 +1367,14 @@ function beltPosFromS(s) {
     s.lineTo(x, y + r);                s.quadraticCurveTo(x, y, x + r, y);
     return s;
   }
-  const NICHE_W = 4.6, NICHE_H = 1.55, NICHE_R = 0.34;
-  const NICHE_Y = BELT_CENTRE_Y;        // centred on the loop
+  const NICHE_W = 4.6, NICHE_H = 2.2, NICHE_R = 0.34;
+  // Sit lower than the loop centre: the panel is 0.55 behind the tube, and the
+  // down-tilted camera (y=4, z≈9) makes that back plane project higher on screen.
+  // Dropping the panel ~0.24 cancels the parallax so the tube reads fully framed.
+  const NICHE_Y = -3.06;
   const NICHE_Z = -0.55;                // behind the tube (tube back ≈ -0.47)
   const nicheGeo = new THREE.ShapeGeometry(roundedRectShape(NICHE_W, NICHE_H, NICHE_R));
-  const nicheMat = new THREE.MeshBasicMaterial({ color: 0xefc7b4 }); // darker than bg 0xfbe4d8
+  const nicheMat = new THREE.MeshBasicMaterial({ color: 0xe4bcac }); // darker than bg 0xfbe4d8
   const nicheMesh = new THREE.Mesh(nicheGeo, nicheMat);
   nicheMesh.position.set(0, NICHE_Y, NICHE_Z);
   nicheMesh.renderOrder = -1;           // backmost panel
