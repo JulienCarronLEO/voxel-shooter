@@ -1313,6 +1313,7 @@ scene.add(funnelGroup);
   basin.position.set(0, -0.12, 0);    // just under the cluster, above the niche
   basin.renderOrder = -1;
   scene.add(basin);
+  basin.visible = false;  // HIDDEN: replaced by the real box top + drop-hole (see block below)
 
   // The flat dimple is superseded by this dimensional basin.
   if (window._catchDimple) window._catchDimple.visible = false;
@@ -1323,6 +1324,50 @@ scene.add(funnelGroup);
     pos: (x, y, z) => basin.position.set(x, y, z),
     scale: (s) => basin.scale.setScalar(s)
   };
+}
+
+// === Real box TOP with a drop-hole (primitive: extruded rounded-rect + hole) ===
+// Caps the niche so the lower section reads as a SOLID toy box with an opening
+// the cluster drops blocks through — replacing the floating lathe basin (now
+// hidden). Real horizontal geometry, so its perspective is correct; the hole
+// has true thickness and you see down into the cavity through it.
+{
+  const BT = {
+    W: 4.85, D: 1.5, Y: -0.92,        // top face: width(X), depth(Z), height(Y)
+    thick: 0.18,                       // lid thickness
+    holeRX: 1.2, holeRZ: 0.55,         // hole radii (X, Z)
+    holeCX: 0, holeCZ: 0.05,           // hole centre offset
+    radius: 0.5,                       // outer rounded-rect corner radius
+    color: 0xcaa493                    // warm tan lid
+  };
+  const hw = BT.W / 2, hd = BT.D / 2, r = Math.min(BT.radius, hw - 0.01, hd - 0.01);
+  const topShape = new THREE.Shape();   // rounded rect in (x,y); y maps to world Z
+  topShape.moveTo(-hw + r, -hd);
+  topShape.lineTo(hw - r, -hd);  topShape.quadraticCurveTo(hw, -hd, hw, -hd + r);
+  topShape.lineTo(hw, hd - r);   topShape.quadraticCurveTo(hw, hd, hw - r, hd);
+  topShape.lineTo(-hw + r, hd);  topShape.quadraticCurveTo(-hw, hd, -hw, hd - r);
+  topShape.lineTo(-hw, -hd + r); topShape.quadraticCurveTo(-hw, -hd, -hw + r, -hd);
+  const holePath = new THREE.Path();    // elliptical hole
+  for (let i = 0; i <= 56; i++) {
+    const a = i / 56 * Math.PI * 2;
+    const x = BT.holeCX + Math.cos(a) * BT.holeRX;
+    const y = BT.holeCZ + Math.sin(a) * BT.holeRZ;
+    i === 0 ? holePath.moveTo(x, y) : holePath.lineTo(x, y);
+  }
+  topShape.holes.push(holePath);
+  const topGeo = new THREE.ExtrudeGeometry(topShape, {
+    depth: BT.thick, bevelEnabled: true,
+    bevelThickness: 0.05, bevelSize: 0.05, bevelSegments: 2, steps: 1
+  });
+  topGeo.rotateX(-Math.PI / 2);         // lay flat (shape XY -> world XZ)
+  topGeo.translate(0, -BT.thick, 0);    // top surface at local y = 0
+  topGeo.computeVertexNormals();
+  const boxTopMesh = new THREE.Mesh(topGeo, new THREE.MeshLambertMaterial({ color: BT.color }));
+  boxTopMesh.position.set(0, BT.Y, 0.15);
+  boxTopMesh.renderOrder = 0;
+  scene.add(boxTopMesh);
+  // Live-tuning handle.
+  window.__boxtop = { mesh: boxTopMesh, cfg: BT };
 }
 
 // ── Conveyor oval loop ─────────────────────────────────────────────────────
